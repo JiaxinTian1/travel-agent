@@ -1,0 +1,32 @@
+# Secrets and local environment
+.env
+*.env
+toolkit/**/.env
+
+# Runtime logs and temporary files
+*.log
+*.pid
+tmp/
+temp/
+
+# Xiaohongshu MCP runtime state
+toolkit/xhs/qr/
+toolkit/xhs/xhs-mcp.log
+toolkit/xhs/xhs-mcp/data/
+toolkit/xhs/xhs-mcp/cache/
+toolkit/xhs/xhs-mcp/home/
+toolkit/xhs/xhs-mcp/*.tar.gz
+toolkit/xhs/xhs-mcp/*-linux-amd64
+
+# Browser binaries downloaded by rod/playwright-style tooling
+**/.cache/rod/
+**/chromium-*/
+
+# Python/node local caches
+__pycache__/
+*.pyc
+node_modules/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

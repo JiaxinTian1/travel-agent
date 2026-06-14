@@ -1,0 +1,5 @@
+#!/bin/sh
+set -a
+. /home/snowbolwer/travel-agent/toolkit/xhs/.env
+set +a
+exec /home/snowbolwer/.local/bin/xiaohongshu-mcp "$@"

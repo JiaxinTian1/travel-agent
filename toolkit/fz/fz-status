@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+FLYAI="/home/snowbolwer/travel-agent/toolkit/fz/flyai-env"
+
+printf '== FlyAI CLI ==\n'
+command -v flyai || true
+ls -l /home/snowbolwer/.local/bin/flyai
+
+printf '\n== FlyAI env ==\n'
+if grep -q '^FLYAI_API_KEY=' /home/snowbolwer/travel-agent/toolkit/fz/.env; then
+  printf 'FLYAI_API_KEY is configured in /home/snowbolwer/travel-agent/toolkit/fz/.env\n'
+else
+  printf 'FLYAI_API_KEY is missing in /home/snowbolwer/travel-agent/toolkit/fz/.env\n' >&2
+  exit 1
+fi
+
+printf '\n== flight smoke test ==\n'
+"$FLYAI" search-flight --origin "上海" --destination "北京" --dep-date 2026-07-01 --sort-type 3

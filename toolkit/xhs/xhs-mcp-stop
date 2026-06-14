@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+PIDS="$(pgrep -f '/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp/xiaohongshu-mcp-linux-amd64' || true)"
+
+if [ -z "$PIDS" ]; then
+  printf 'No xiaohongshu MCP service is running.\n'
+  exit 0
+fi
+
+printf 'Stopping xiaohongshu MCP service: %s\n' "$PIDS"
+kill $PIDS

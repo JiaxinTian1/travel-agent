@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+set -a
+. /home/snowbolwer/travel-agent/toolkit/fz/.env
+set +a
+
+exec /home/snowbolwer/.local/bin/flyai "$@"

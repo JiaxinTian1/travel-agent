@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+BASE="/home/snowbolwer/travel-agent/toolkit/xhs"
+QR_DIR="$BASE/qr"
+mkdir -p "$QR_DIR"
+rm -f "$QR_DIR"/mcp-image-*.png
+
+/home/snowbolwer/.local/bin/mcporter call xiaohongshu-xpz.get_login_qrcode --save-images "$QR_DIR" --output text
+
+LATEST="$(ls -t "$QR_DIR"/mcp-image-*.png 2>/dev/null | head -n 1 || true)"
+if [ -n "$LATEST" ]; then
+  printf '\nQR saved:\n%s\n\n' "$LATEST"
+  WIN_PATH="$(printf '%s' "$LATEST" | sed 's#/#\\#g')"
+  printf 'Open from Windows Explorer:\n\\\\wsl$\\Ubuntu%s\n' "$WIN_PATH"
+else
+  printf '\nNo QR image was saved. Check whether xiaohongshu-xpz MCP service is running.\n' >&2
+  exit 1
+fi

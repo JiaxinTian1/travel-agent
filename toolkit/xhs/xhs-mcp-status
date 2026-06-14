@@ -1,0 +1,17 @@
+#!/bin/sh
+set -u
+
+MCPORTER="/home/snowbolwer/.local/bin/mcporter"
+
+printf '== xiaohongshu MCP port ==\n'
+ss -ltnp 2>/dev/null | grep ':18060' || printf '18060 is not listening\n'
+
+printf '\n== xiaohongshu MCP processes ==\n'
+ps -ef | grep '[x]iaohongshu-mcp' || printf 'no xiaohongshu-mcp process\n'
+
+printf '\n== login status ==\n'
+"$MCPORTER" call xiaohongshu-xpz.check_login_status --timeout 30000 --output text || true
+
+printf '\n== search smoke test ==\n'
+"$MCPORTER" call xiaohongshu-xpz.search_feeds --timeout 60000 --args '{"keyword":"成都亲子游"}' --output text \
+  | sed -n '1,80p'
