@@ -29,7 +29,7 @@ Likely cause: the installed `xiaohongshu-mcp-steve` package forwards static `x-s
 
 Current practical status:
 
-- FlyAI: working via `/home/snowbolwer/travel-agent/toolkit/fz/flyai-env`.
+- FlyAI: working via `./toolkit/fz/flyai-env`.
 - Xiaohongshu cookie loading: working.
 - Xiaohongshu direct API auth: partially working.
 - Xiaohongshu note retrieval through current package: not working, returns empty result.
@@ -46,7 +46,7 @@ Downloaded release:
 Installed under:
 
 ```text
-/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp/
+toolkit/xhs/xhs-mcp/
 ```
 
 Binaries:
@@ -82,13 +82,13 @@ Conclusion: this repository is structurally usable and matches the travel-planne
 Login is confirmed through the visual browser flow. The QR-only MCP flow can show a QR image, but did not reliably persist cookies in this WSL setup. The reliable path was:
 
 1. Install Chromium runtime libraries.
-2. Run `/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp-start`.
+2. Run `./toolkit/xhs/xhs-mcp-start`.
 3. Generate/login through the browser flow and confirm the second security QR in REDNote.
 
 Cookies now exist:
 
 ```text
-/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp/data/cookies.json
+toolkit/xhs/xhs-mcp/data/cookies.json
 ```
 
 Verified:

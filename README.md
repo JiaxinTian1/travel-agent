@@ -1,72 +1,112 @@
 # Travel Agent
 
-This folder is a Codex-driven travel planning workspace.
+This repository is a Codex travel-planning workspace centered on two active skills:
+
+- `travel-destination-research`: compare and rank candidate destinations when the destination is still open.
+- `travel-itinerary-plan`: build route options and a detailed 2-hour itinerary after the destination is chosen.
+
+The toolkit folders provide live data helpers for those skills, but the skills are the main product of this repo.
 
 ## Layout
 
 ```text
-/home/snowbolwer/travel-agent/
-├── toolkit/       # CLI/MCP/API integrations and credentials
-│   ├── fz/        # Feizhu/FlyAI
-│   └── xhs/       # Xiaohongshu MCP
-├── skills/        # Project copies of travel skills
-├── workspace/     # User state and generated work
-│   ├── memory.md  # Long-term user preferences/profile
-│   ├── query.md   # Current active trip request
-│   └── outputs/   # Generated plans and source snapshots
-├── README.md
+.
+├── skills/
+│   ├── travel-destination-research/
+│   └── travel-itinerary-plan/
+├── toolkit/
+│   ├── fz/        # Feizhu/FlyAI CLI wrapper
+│   └── xhs/       # Xiaohongshu MCP scripts and login state
+├── workspace/
+│   ├── memory.md  # long-term travel preferences and visited-place memory
+│   ├── query.md   # current editable trip request
+│   └── outputs/   # generated plans and source snapshots
+├── install.sh
 ├── commands.md
 └── status.md
 ```
 
-Codex discovers the active travel skills from:
+Run commands from the repository root unless a command says otherwise.
 
-- `/home/snowbolwer/.codex/skills/travel-destination-research`
-- `/home/snowbolwer/.codex/skills/travel-itinerary-plan`
+## Install
 
-The project copies live under `skills/` for organization and future packaging.
-
-## Feizhu/FlyAI
-
-FlyAI config lives in `/home/snowbolwer/travel-agent/toolkit/fz/.env`.
+Install or check the optional live-data dependencies:
 
 ```bash
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-flight --origin "上海" --destination "北京" --dep-date 2026-07-01 --sort-type 3
+./install.sh
+./install.sh --doctor
 ```
 
-To load the environment manually:
+The installer handles project wrappers, downloads the Xiaohongshu MCP binary, and installs npm CLIs when `npm` is available:
+
+- `@fly-ai/flyai-cli` for FlyAI/Fliggy flight, hotel, and POI data.
+- `mcporter` for calling MCP tools from shell.
+
+It does not log in to Xiaohongshu. It also does not install system packages such as Node.js/npm or Chromium libraries; when those are missing it prints the commands to install them.
+
+## Skills
+
+Use `travel-destination-research` for questions like:
+
+```text
+9月底从上海出发，想要自然风光、小众一点，去哪几个地方值得比？
+```
+
+Use `travel-itinerary-plan` after the destination is fixed:
+
+```text
+就选格鲁吉亚，帮我做 9/25-10/7 的路线和 2 小时日程表。
+```
+
+Both skills read `workspace/memory.md` and `workspace/query.md` when present, then merge them with the latest user prompt. Generated artifacts should go under `workspace/outputs/<trip-id>/`.
+
+## Feizhu / FlyAI
+
+FlyAI config lives in `toolkit/fz/.env`.
+
+Example:
 
 ```bash
-set -a
-. /home/snowbolwer/travel-agent/toolkit/fz/.env
-set +a
+./toolkit/fz/flyai-env search-flight --origin "上海" --destination "北京" --dep-date 2026-07-01 --sort-type 3
 ```
 
-## Xiaohongshu Values
-
-Get these from a browser where you are logged into xiaohongshu.com, then put them in `/home/snowbolwer/travel-agent/toolkit/xhs/.env`:
-
-- `XIAOHONGSHU_COOKIE`: request header `Cookie`
-- `XIAOHONGSHU_XS`: request header `x-s`
-- `XIAOHONGSHU_XS_COMMON`: request header `x-s-common`
-
-Use a request such as the search API request under DevTools -> Network.
-
-Load old Xiaohongshu MCP variables only when needed:
+Smoke test:
 
 ```bash
-set -a
-. /home/snowbolwer/travel-agent/toolkit/xhs/.env
-set +a
-mcporter call xiaohongshu.search_notes keyword="成都 亲子游" page_size=3 sort="popularity_descending"
+./toolkit/fz/fz-status
 ```
 
-## Installed Commands
+## Xiaohongshu MCP
 
-The WSL wrappers live in `/home/snowbolwer/.local/bin`:
+The current Xiaohongshu MCP service is the `xiaohongshu-xpz` mcporter registration. Start it from the repository root:
 
-- `flyai`
-- `mcporter`
-- `xiaohongshu-mcp`
+```bash
+./toolkit/xhs/xhs-mcp-start
+```
 
-The copied packages live in `/home/snowbolwer/.local/lib/node-global/node_modules`.
+By default, the start script runs the visual login helper first. If you are rate-limited or want to test anonymous search without touching login state, skip that login check:
+
+```bash
+XHS_SKIP_LOGIN=1 ./toolkit/xhs/xhs-mcp-start
+```
+
+Skipping login only avoids the login helper. It does not guarantee anonymous search will work; Xiaohongshu may still require valid cookies or block automated search.
+
+Common commands:
+
+```bash
+./toolkit/xhs/xhs-mcp-status
+./toolkit/xhs/xhs-mcp-stop
+mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"成都 亲子游"}'
+```
+
+If you need QR login later:
+
+```bash
+./toolkit/xhs/xhs-login-qr
+./toolkit/xhs/xhs-login-watch
+```
+
+## More Commands
+
+See `commands.md` for the fuller command notebook and `status.md` for historical integration notes.

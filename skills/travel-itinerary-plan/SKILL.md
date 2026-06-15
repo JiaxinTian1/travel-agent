@@ -16,7 +16,7 @@ Use this skill after the user has selected a destination and wants an executable
 Default project root:
 
 ```text
-/home/snowbolwer/travel-agent/
+.
 ├── workspace/
 │   ├── memory.md    # long-term user profile: visited places, preferences, constraints
 │   ├── query.md     # current editable travel request
@@ -28,8 +28,8 @@ Default project root:
 
 Before planning:
 
-1. Read `/home/snowbolwer/travel-agent/workspace/memory.md` if it exists.
-2. Read `/home/snowbolwer/travel-agent/workspace/query.md` if it exists.
+1. Read `workspace/memory.md` if it exists.
+2. Read `workspace/query.md` if it exists.
 3. Merge those files with the user's latest prompt. The latest prompt wins.
 4. Confirm the destination is fixed. If not fixed, use `travel-destination-research` instead.
 
@@ -38,8 +38,8 @@ Before planning:
 Use local tools when live evidence matters:
 
 ```bash
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-flight --origin "上海" --destination "第比利斯" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-hotels --dest-name "第比利斯" --check-in-date 2026-09-25 --check-out-date 2026-09-27
+./toolkit/fz/flyai-env search-flight --origin "上海" --destination "第比利斯" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
+./toolkit/fz/flyai-env search-hotel --dest-name "第比利斯" --check-in-date 2026-09-25 --check-out-date 2026-09-27
 mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"格鲁吉亚 高加索 自驾 攻略"}'
 ```
 
@@ -115,7 +115,7 @@ Optional supporting sections may follow:
 For substantial results, save artifacts under:
 
 ```text
-/home/snowbolwer/travel-agent/workspace/outputs/<trip-id>/
+workspace/outputs/<trip-id>/
 ├── query.md
 ├── result.md
 ├── route_score_table.json

@@ -1,12 +1,16 @@
 #!/bin/sh
 set -eu
 
-PIDS="$(pgrep -f '/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp/xiaohongshu-mcp-linux-amd64' || true)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+BIN="$SCRIPT_DIR/xhs-mcp/xiaohongshu-mcp-linux-amd64"
+PIDS="$(pgrep -f "$BIN" || true)"
 
 if [ -z "$PIDS" ]; then
-  printf 'No xiaohongshu MCP service is running.\n'
+  printf 'No xiaohongshu MCP service is running.
+'
   exit 0
 fi
 
-printf 'Stopping xiaohongshu MCP service: %s\n' "$PIDS"
+printf 'Stopping xiaohongshu MCP service: %s
+' "$PIDS"
 kill $PIDS

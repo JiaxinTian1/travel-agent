@@ -9,6 +9,9 @@ toolkit/**/.env
 tmp/
 temp/
 
+# Generated travel research/planning artifacts
+workspace/outputs/
+
 # Xiaohongshu MCP runtime state
 toolkit/xhs/qr/
 toolkit/xhs/xhs-mcp.log

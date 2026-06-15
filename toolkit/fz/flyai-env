@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
 set -a
-. /home/snowbolwer/travel-agent/toolkit/fz/.env
+. "$SCRIPT_DIR/.env"
 set +a
 
-exec /home/snowbolwer/.local/bin/flyai "$@"
+exec "${FLYAI_BIN:-flyai}" "$@"

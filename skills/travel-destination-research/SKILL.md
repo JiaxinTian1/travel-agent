@@ -17,7 +17,7 @@ Use this skill to help the user choose a destination before detailed trip planni
 Default project root:
 
 ```text
-/home/snowbolwer/travel-agent/
+.
 ├── workspace/
 │   ├── memory.md    # long-term user profile: visited places, preferences, constraints
 │   ├── query.md     # current editable travel request
@@ -29,8 +29,8 @@ Default project root:
 
 Before researching:
 
-1. Read `/home/snowbolwer/travel-agent/workspace/memory.md` if it exists.
-2. Read `/home/snowbolwer/travel-agent/workspace/query.md` if it exists.
+1. Read `workspace/memory.md` if it exists.
+2. Read `workspace/query.md` if it exists.
 3. Merge those files with the user's latest prompt. The latest prompt wins.
 4. If visited-place memory is missing, state that difference scoring is limited.
 
@@ -41,8 +41,8 @@ Do not use or maintain a `queries/` folder. If a run should be preserved, save a
 Use local tools when live evidence matters:
 
 ```bash
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env fliggy-fast-search --query "上海出发 9月 自然风光 13天"
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-flight --origin "上海" --destination "第比利斯" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
+./toolkit/fz/flyai-env fliggy-fast-search --query "上海出发 9月 自然风光 13天"
+./toolkit/fz/flyai-env search-flight --origin "上海" --destination "第比利斯" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
 mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"格鲁吉亚 自然风光 攻略"}'
 ```
 
@@ -187,7 +187,7 @@ Optional supporting sections may follow:
 For substantial results, save artifacts under:
 
 ```text
-/home/snowbolwer/travel-agent/workspace/outputs/<trip-id>/
+workspace/outputs/<trip-id>/
 ├── query.md
 ├── result.md
 ├── detail_table.json

@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
 
-BASE="/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+BASE="$SCRIPT_DIR/xhs-mcp"
 mkdir -p "$BASE/data" "$BASE/cache" "$BASE/home"
 
 export XDG_CACHE_HOME="$BASE/cache"

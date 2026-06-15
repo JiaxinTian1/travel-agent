@@ -13,7 +13,7 @@ This combined skill has been split into two active skills:
 - `travel-destination-research`: choose and rank destinations. Does not output a full 2-hour itinerary grid.
 - `travel-itinerary-plan`: build detailed route and 2-hour itinerary after the destination is selected.
 
-The active installed copies live in `/home/snowbolwer/.codex/skills/`.
+The active project copies live under `skills/`.
 
 This skill turns a user's travel intent into decision-ready travel plans. It has two modes:
 
@@ -30,7 +30,7 @@ The required user-facing output in both modes is:
 Use this workspace by default:
 
 ```text
-/home/snowbolwer/travel-agent/
+.
 ├── workspace/
 │   ├── memory.md      # long-term user preferences, visited places, constraints
 │   ├── query.md       # current editable request
@@ -43,8 +43,8 @@ Use this workspace by default:
 
 Before planning:
 
-1. Read `/home/snowbolwer/travel-agent/workspace/memory.md` if it exists.
-2. Read `/home/snowbolwer/travel-agent/workspace/query.md` if it exists.
+1. Read `workspace/memory.md` if it exists.
+2. Read `workspace/query.md` if it exists.
 3. Merge those files with the user's latest prompt. Latest prompt wins.
 4. If a key field is missing and cannot be inferred, ask only the minimum needed question. Do not ask if a reasonable assumption can be stated in the output.
 
@@ -56,16 +56,16 @@ Use Bash for local tools.
 
 | Tool | Command | Use |
 |---|---|---|
-| FlyAI / Feizhu | `/home/snowbolwer/travel-agent/toolkit/fz/flyai-env ...` | flights, hotels, POIs, fast travel-product search |
+| FlyAI / Feizhu | `./toolkit/fz/flyai-env ...` | flights, hotels, POIs, fast travel-product search |
 | Xiaohongshu MCP | `mcporter call xiaohongshu-xpz.search_feeds ...` | real user notes and community validation |
 | Web search | available web/search tool | weather, official sites, route facts, general research |
 
 FlyAI examples:
 
 ```bash
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env fliggy-fast-search --query "上海出发 9月 自然风光 13天"
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-flight --origin "上海" --destination "奥克兰" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
-/home/snowbolwer/travel-agent/toolkit/fz/flyai-env search-hotels --dest-name "皇后镇" --check-in-date 2026-09-26 --check-out-date 2026-09-28
+./toolkit/fz/flyai-env fliggy-fast-search --query "上海出发 9月 自然风光 13天"
+./toolkit/fz/flyai-env search-flight --origin "上海" --destination "奥克兰" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
+./toolkit/fz/flyai-env search-hotel --dest-name "皇后镇" --check-in-date 2026-09-26 --check-out-date 2026-09-28
 ```
 
 Xiaohongshu examples:
@@ -78,8 +78,8 @@ mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"
 If a tool hangs, report it briefly and continue with other sources. For Xiaohongshu, the user can restart with:
 
 ```bash
-/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp-stop
-/home/snowbolwer/travel-agent/toolkit/xhs/xhs-mcp-start
+./toolkit/xhs/xhs-mcp-stop
+./toolkit/xhs/xhs-mcp-start
 ```
 
 ## Mode Selection
@@ -212,7 +212,7 @@ Do not bury the two required tables below long prose.
 When producing a substantial result, save artifacts under:
 
 ```text
-/home/snowbolwer/travel-agent/workspace/outputs/<trip-id>/
+workspace/outputs/<trip-id>/
 ├── query.md
 ├── result.md
 ├── score_table.json
