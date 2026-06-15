@@ -1,0 +1,34 @@
+#!/bin/sh
+set -u
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+
+cat <<'EOF'
+Travel toolkit login/config flow
+
+- FlyAI/Feizhu: uses toolkit/fz/.env. No browser login here.
+- Airbnb: no account login. Uses npx MCP wrapper.
+- Xiaohongshu: account/session login may be required by platform risk control.
+EOF
+
+printf '\n== FlyAI / Feizhu config ==\n'
+"$ROOT/toolkit/fz/fz-status" || true
+
+printf '\n== Airbnb MCP ==\n'
+"$ROOT/toolkit/airbnb/airbnb-mcp-list" || true
+
+printf '\n== Xiaohongshu login ==\n'
+if ss -ltn 2>/dev/null | grep -q ':18060'; then
+  "$ROOT/toolkit/xhs/xhs-login-watch"
+else
+  cat <<EOF
+Xiaohongshu MCP service is not listening on :18060.
+Start it in another terminal, then rerun this script:
+
+  $ROOT/toolkit/xhs/xhs-mcp-start
+
+If you only want a status check:
+
+  $ROOT/toolkit/login/login-status
+EOF
+fi

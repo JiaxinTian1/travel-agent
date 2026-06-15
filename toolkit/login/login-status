@@ -1,0 +1,25 @@
+#!/bin/sh
+set -u
+
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+
+printf '== FlyAI / Feizhu ==\n'
+if [ -x "$ROOT/toolkit/fz/fz-status" ]; then
+  "$ROOT/toolkit/fz/fz-status" || true
+else
+  printf 'toolkit/fz/fz-status missing\n'
+fi
+
+printf '\n== Xiaohongshu ==\n'
+if [ -x "$ROOT/toolkit/xhs/xhs-mcp-status" ]; then
+  "$ROOT/toolkit/xhs/xhs-mcp-status" || true
+else
+  printf 'toolkit/xhs/xhs-mcp-status missing\n'
+fi
+
+printf '\n== Airbnb ==\n'
+if [ -x "$ROOT/toolkit/airbnb/airbnb-mcp-list" ]; then
+  "$ROOT/toolkit/airbnb/airbnb-mcp-list" || true
+else
+  printf 'toolkit/airbnb/airbnb-mcp-list missing\n'
+fi

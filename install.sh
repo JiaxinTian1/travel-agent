@@ -12,6 +12,7 @@ DOCTOR=false
 SKIP_NPM=false
 SKIP_XHS=false
 SKIP_SYSTEM_CHECK=false
+INSTALL_SYSTEM=false
 
 usage() {
   cat <<'EOF'
@@ -25,6 +26,7 @@ Options:
       --skip-npm         Do not install npm CLIs.
       --skip-xhs         Do not download Xiaohongshu MCP binaries.
       --skip-system      Skip node/npm/chromium system checks.
+      --install-system   Install missing Linux system packages with apt-get.
   -h, --help             Show this help.
 
 Environment:
@@ -36,8 +38,10 @@ Environment:
 Notes:
   - FlyAI CLI comes from npm package @fly-ai/flyai-cli.
   - mcporter CLI comes from npm package mcporter.
+  - Airbnb MCP uses npx package @openbnb/mcp-server-airbnb on demand.
   - Xiaohongshu login is not performed by this installer.
   - toolkit/fz/.env is optional. Add FLYAI_API_KEY there if you have one.
+  - --install-system may prompt for sudo and installs nodejs/npm when missing.
 EOF
 }
 
@@ -69,10 +73,46 @@ parse_args() {
       --skip-npm) SKIP_NPM=true; shift ;;
       --skip-xhs) SKIP_XHS=true; shift ;;
       --skip-system) SKIP_SYSTEM_CHECK=true; shift ;;
+      --install-system) INSTALL_SYSTEM=true; shift ;;
       -h|--help) usage; exit 0 ;;
       *) fail "Unknown option: $1"; usage; exit 2 ;;
     esac
   done
+}
+
+install_system_packages() {
+  "$SKIP_SYSTEM_CHECK" && return 0
+  "$INSTALL_SYSTEM" || return 0
+
+  local need_apt=()
+  local apt_cmd="${APT_GET:-apt-get}"
+
+  if ! has_cmd sudo; then
+    fail "sudo is required for --install-system"
+    return 1
+  fi
+
+  if ! has_cmd "$apt_cmd"; then
+    fail "apt-get is required for --install-system"
+    return 1
+  fi
+
+  if ! has_cmd node || ! node --version >/dev/null 2>&1; then
+    need_apt+=(nodejs)
+  fi
+
+  if ! has_cmd npm || ! npm --version >/dev/null 2>&1 || ! has_cmd npx || ! npx --version >/dev/null 2>&1; then
+    need_apt+=(npm)
+  fi
+
+  if ((${#need_apt[@]} == 0)); then
+    ok "Linux node/npm/npx already usable"
+    return 0
+  fi
+
+  log "Installing Linux system packages: ${need_apt[*]}"
+  sudo "$apt_cmd" update
+  sudo "$apt_cmd" install -y "${need_apt[@]}"
 }
 
 check_system() {
@@ -84,8 +124,8 @@ check_system() {
     if has_cmd "$cmd"; then ok "$cmd found"; else missing+=("$cmd"); fi
   done
 
-  if has_cmd node; then ok "node found: $(command -v node)"; else warn "node not found"; fi
-  if has_cmd "${NPM:-npm}"; then ok "npm found: $(command -v "${NPM:-npm}")"; else warn "npm not found"; fi
+  if has_cmd node && node --version >/dev/null 2>&1; then ok "node found: $(command -v node)"; else warn "node not found or not usable from WSL"; fi
+  if has_cmd "${NPM:-npm}" && "${NPM:-npm}" --version >/dev/null 2>&1; then ok "npm found: $(command -v "${NPM:-npm}")"; else warn "npm not found or not usable from WSL"; fi
 
   if ((${#missing[@]})); then
     fail "Missing required tools: ${missing[*]}"
@@ -153,7 +193,13 @@ ensure_wrappers() {
     "${ROOT}/toolkit/xhs/xhs-mcp-stop" \
     "${ROOT}/toolkit/xhs/xhs-mcp-status" \
     "${ROOT}/toolkit/xhs/xhs-login-qr" \
-    "${ROOT}/toolkit/xhs/xhs-login-watch"
+    "${ROOT}/toolkit/xhs/xhs-login-watch" \
+    "${ROOT}/toolkit/airbnb/airbnb-mcp-env" \
+    "${ROOT}/toolkit/airbnb/airbnb-mcp-list" \
+    "${ROOT}/toolkit/airbnb/airbnb-search" \
+    "${ROOT}/toolkit/airbnb/airbnb-details" \
+    "${ROOT}/toolkit/login/login-status" \
+    "${ROOT}/toolkit/login/login-all"
 
   if [[ ! -f "${ROOT}/toolkit/fz/.env.example" ]]; then
     cat > "${ROOT}/toolkit/fz/.env.example" <<'EOF'
@@ -166,6 +212,10 @@ EOF
   if [[ ! -f "${ROOT}/toolkit/fz/.env" ]]; then
     warn "toolkit/fz/.env is missing; create it from .env.example if you have FLYAI_API_KEY"
   fi
+
+  if [[ ! -f "${ROOT}/toolkit/airbnb/.env" ]]; then
+    warn "toolkit/airbnb/.env is missing; this is OK unless you need Airbnb MCP overrides"
+  fi
 }
 
 doctor() {
@@ -176,10 +226,11 @@ doctor() {
     if has_cmd "$cmd"; then ok "$cmd"; else fail "$cmd missing"; failures=$((failures + 1)); fi
   done
 
-  if has_cmd node; then ok "node: $(command -v node)"; else warn "node missing"; fi
-  if has_cmd "${NPM:-npm}"; then ok "npm: $(command -v "${NPM:-npm}")"; else warn "npm missing"; fi
-  if has_cmd "${FLYAI_BIN:-flyai}"; then ok "flyai: $(command -v "${FLYAI_BIN:-flyai}")"; else warn "flyai missing"; fi
-  if has_cmd "${MCPORTER:-mcporter}"; then ok "mcporter: $(command -v "${MCPORTER:-mcporter}")"; else warn "mcporter missing"; fi
+  if has_cmd node && node --version >/dev/null 2>&1; then ok "node: $(command -v node)"; else warn "node missing or unusable from WSL"; fi
+  if has_cmd "${NPM:-npm}" && "${NPM:-npm}" --version >/dev/null 2>&1; then ok "npm: $(command -v "${NPM:-npm}")"; else warn "npm missing or unusable from WSL"; fi
+  if has_cmd "${FLYAI_BIN:-flyai}" && "${FLYAI_BIN:-flyai}" --help >/dev/null 2>&1; then ok "flyai: $(command -v "${FLYAI_BIN:-flyai}")"; else warn "flyai missing or not runnable"; fi
+  if has_cmd "${MCPORTER:-mcporter}" && "${MCPORTER:-mcporter}" --help >/dev/null 2>&1; then ok "mcporter: $(command -v "${MCPORTER:-mcporter}")"; else warn "mcporter missing or not runnable"; fi
+  if has_cmd npx && npx --version >/dev/null 2>&1; then ok "npx: $(command -v npx)"; else warn "npx missing or unusable; Airbnb MCP wrappers will not work"; fi
 
   if [[ -x "${XHS_DIR}/xiaohongshu-mcp-linux-amd64" ]]; then
     ok "Xiaohongshu MCP binary installed"
@@ -199,6 +250,18 @@ doctor() {
     warn "toolkit/fz/.env missing (optional unless you need a FlyAI API key)"
   fi
 
+  if [[ -x "${ROOT}/toolkit/airbnb/airbnb-search" ]]; then
+    ok "Airbnb wrapper scripts installed"
+  else
+    warn "Airbnb wrapper scripts missing"
+  fi
+
+  if [[ -x "${ROOT}/toolkit/login/login-status" ]]; then
+    ok "Login helper scripts installed"
+  else
+    warn "Login helper scripts missing"
+  fi
+
   return "$failures"
 }
 
@@ -210,6 +273,7 @@ main() {
   fi
 
   check_system
+  install_system_packages
   install_npm_clis
   install_xhs_mcp
   ensure_wrappers

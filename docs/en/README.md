@@ -3,9 +3,9 @@
 <p>
   <a href="README.md"><strong>English</strong></a>
   &nbsp;|&nbsp;
-  <a href="docs/zh/README.md"><strong>中文</strong></a>
+  <a href="../zh/README.md"><strong>中文</strong></a>
   &nbsp;|&nbsp;
-  <a href="docs/index.html"><strong>Docs</strong></a>
+  <a href="../index.html"><strong>Docs</strong></a>
 </p>
 
 This repository is a Codex travel-planning workspace centered on two active skills:

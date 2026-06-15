@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./toolkit/airbnb/airbnb-details id=12345678 checkin=2026-09-25 checkout=2026-10-07 adults=2
+
+Common args passed to airbnb_listing_details:
+  id=...
+  checkin=YYYY-MM-DD
+  checkout=YYYY-MM-DD
+  adults=1
+  children=0
+  infants=0
+  pets=0
+  ignoreRobotsText=false
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
+  usage
+  exit 0
+fi
+
+exec "${SCRIPT_DIR}/airbnb-mcp-env" call airbnb_listing_details "$@" --timeout "${AIRBNB_TIMEOUT:-120000}"
