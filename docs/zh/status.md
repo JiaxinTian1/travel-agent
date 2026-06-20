@@ -75,7 +75,7 @@ Failed to launch the browser:
 .../rod/browser/chromium-1321438/chrome: error while loading shared libraries: libnss3.so: cannot open shared object file
 ```
 
-结论：这个仓库结构上可用，也匹配 travel-planner 工具命名，但 WSL 缺少 Linux Chromium 运行库。登录/搜索前需要安装 Chromium 依赖。
+结论：这个仓库结构上可用，也匹配 travel-agent 工具命名，但 WSL 缺少 Linux Chromium 运行库。登录/搜索前需要安装 Chromium 依赖。
 
 ## 2026-06-14 xpzouying 登录成功
 
@@ -125,3 +125,33 @@ npx 9.2.0
 airbnb-mcp-list OK
 airbnb-search reaches the MCP server; default wrapper behavior bypasses robots.txt
 ```
+
+## 2026-06-20 Booking.com MCP Wrapper
+
+已把 `markswendsen-code/mcp-booking` 集成为本地只读酒店调研 wrapper：
+
+```text
+toolkit/booking/
+```
+
+命令：
+
+- `booking-mcp-list`
+- `booking-search`
+- `booking-property`
+- `booking-availability`
+- `booking-prices`
+- `booking-reviews`
+
+wrapper 使用 `mcporter` 连接 `npx -y @striderlabs/mcp-booking` 的 stdio 服务。
+
+默认 travel skill 使用规则：
+
+- 海外酒店/酒店式公寓：优先 Booking.com。
+- 民宿/公寓/villa/厨房洗衣/家庭住宿/长住：优先 Airbnb。
+- 机票和国内/中文生态旅行数据：优先 FlyAI/飞猪。
+
+安全边界：
+
+- 订房、订单、收藏相关工具不会通过 wrapper 暴露给自动调研流程。
+- 除非后续增加单独的人工确认订房流程，否则不要调用 `booking_book`、`booking_cancel_reservation`、`booking_get_reservations` 或 `booking_save_property`。

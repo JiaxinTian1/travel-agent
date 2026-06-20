@@ -75,7 +75,7 @@ Failed to launch the browser:
 .../rod/browser/chromium-1321438/chrome: error while loading shared libraries: libnss3.so: cannot open shared object file
 ```
 
-Conclusion: this repository is structurally usable and matches the travel-planner tool names, but WSL is missing Linux Chromium runtime libraries. Install Chromium dependencies before login/search can work.
+Conclusion: this repository is structurally usable and matches the travel-agent tool names, but WSL is missing Linux Chromium runtime libraries. Install Chromium dependencies before login/search can work.
 
 ## 2026-06-14 xpzouying Login Success
 
@@ -125,3 +125,33 @@ npx 9.2.0
 airbnb-mcp-list OK
 airbnb-search reaches the MCP server; default wrapper behavior bypasses robots.txt
 ```
+
+## 2026-06-20 Booking.com MCP Wrapper
+
+Integrated `markswendsen-code/mcp-booking` as local read-only hotel research wrappers under:
+
+```text
+toolkit/booking/
+```
+
+Commands:
+
+- `booking-mcp-list`
+- `booking-search`
+- `booking-property`
+- `booking-availability`
+- `booking-prices`
+- `booking-reviews`
+
+The wrapper uses `mcporter` to connect to `npx -y @striderlabs/mcp-booking` over stdio.
+
+Default travel-skill usage:
+
+- Overseas hotels/aparthotels: use Booking.com first.
+- Homestays/apartments/villas/kitchens/laundry/family stays/long stays: use Airbnb first.
+- Flights and domestic/Chinese-market travel data: use FlyAI/Feizhu first.
+
+Safety boundary:
+
+- Booking/reservation/wishlist tools are intentionally not wrapped for automated research flows.
+- Do not call `booking_book`, `booking_cancel_reservation`, `booking_get_reservations`, or `booking_save_property` unless a separate manual booking workflow with explicit user confirmation is added.

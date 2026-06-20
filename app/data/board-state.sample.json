@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "activeTab": "researcher",
+  "researcher": {
+    "setIndex": 0,
+    "sets": [
+      {
+        "seed": "sample-202609-global-A1B2",
+        "candidates": [
+          {
+            "id": "georgia-caucasus",
+            "plannerId": "planner_A1B2_georgia-caucasus",
+            "name": "格鲁吉亚 / 高加索",
+            "score": 70,
+            "rank": 1,
+            "seed": "A1B2",
+            "detail": {
+              "nature": "大高加索雪山、Kazbegi、Gergeti 教堂山景、峡谷、半荒漠地貌。",
+              "culture": "第比利斯古城、酒文化、东正教修道院、硫磺浴、山地村镇。",
+              "weather": "9月底适合高加索山地，白天舒适，山上偏冷；需防雨和温差。",
+              "reviews": "第比利斯整套房源多，低价房源评价集中在位置、房东响应和老城步行便利。",
+              "flights": "上海约 ¥7,508；北京约 ¥7,088；重庆约 ¥7,499，但重庆和上海长中转明显。",
+              "cost": "三人机票约 ¥22,095；住宿低价抵消部分机票。",
+              "premium": "价格溢价中低，但上海/重庆存在明显时间溢价。",
+              "duration": "北京约 19-22h；上海常见 30h 级别；重庆可能 40h+。"
+            },
+            "scores": {
+              "nature": 9,
+              "culture": 8,
+              "weather": 8,
+              "reviews": 8,
+              "flights": 5,
+              "cost": 8,
+              "premium": 6,
+              "duration": 4
+            }
+          },
+          {
+            "id": "oman-wadis",
+            "plannerId": "planner_A1B2_oman-wadis",
+            "name": "阿曼 / 山地与 Wadi",
+            "score": 68.8,
+            "rank": 2,
+            "seed": "A1B2",
+            "detail": {
+              "nature": "Jebel Akhdar、Wadi Shab、沙漠、海岸和峡谷组合强。",
+              "culture": "马斯喀特清真寺、传统市集、阿拉伯海岸城镇和山地村落。",
+              "weather": "9月底开始比盛夏舒服，但低海拔白天仍热，山地更适合。",
+              "reviews": "酒店选择多，民宿需要按 Muscat/Nizwa/Jebel Akhdar 分区查。",
+              "flights": "三地到 Muscat 需要实时查，多数为中转。",
+              "cost": "预算待查实时航班和住宿。",
+              "premium": "溢价待跑三组对比日期。",
+              "duration": "飞行时间待按多出发地分别查询。"
+            },
+            "scores": {
+              "nature": 9,
+              "culture": 7,
+              "weather": 7,
+              "reviews": 6,
+              "flights": 6,
+              "cost": 7,
+              "premium": 6,
+              "duration": 6
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "planners": [],
+  "openPlannerIds": []
+}

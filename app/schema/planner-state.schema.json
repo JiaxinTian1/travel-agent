@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://travel-agent.local/schema/planner-state.schema.json",
+  "title": "Planner State",
+  "type": "object",
+  "required": ["id", "destinationId", "researchSeed", "title", "destinationName", "candidates", "staging", "itinerary"],
+  "additionalProperties": true,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "destinationId": { "type": "string", "minLength": 1 },
+    "researchSeed": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "destinationName": { "type": "string", "minLength": 1 },
+    "candidates": {
+      "type": "object",
+      "required": ["restaurants", "hotels", "attractions", "flights"],
+      "properties": {
+        "restaurants": { "type": "array", "items": { "$ref": "#/$defs/placeItem" } },
+        "hotels": { "type": "array", "items": { "$ref": "#/$defs/placeItem" } },
+        "attractions": { "type": "array", "items": { "$ref": "#/$defs/placeItem" } },
+        "flights": { "type": "array", "items": { "$ref": "#/$defs/placeItem" } }
+      }
+    },
+    "staging": { "type": "array", "items": { "$ref": "#/$defs/scheduledItem" } },
+    "itinerary": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/scheduledItem" }
+    }
+  },
+  "$defs": {
+    "placeItem": {
+      "type": "object",
+      "required": ["id", "name", "type", "lat", "lng"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["restaurant", "hotel", "attraction", "flight"] },
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "note": { "type": "string" }
+      }
+    },
+    "scheduledItem": {
+      "allOf": [
+        { "$ref": "#/$defs/placeItem" },
+        {
+          "type": "object",
+          "required": ["instanceId"],
+          "properties": {
+            "instanceId": { "type": "string", "minLength": 1 },
+            "itemId": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

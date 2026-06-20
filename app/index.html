@@ -1,0 +1,1555 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travel Planner Board Prototype</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ4pB9z5+Xy9K9lNabQrgFhVbM0gcLw=" crossorigin="">
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --panel: #fff;
+      --soft: #f8fafc;
+      --line: #d9dee7;
+      --text: #17202a;
+      --muted: #667085;
+      --accent: #0f766e;
+      --accent-soft: #e0f2f1;
+      --danger: #b42318;
+      --shadow: 0 10px 24px rgba(15, 23, 42, .08);
+      --restaurant: #b45309;
+      --hotel: #2563eb;
+      --attraction: #15803d;
+      --flight: #7c3aed;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 1040px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+    button { font: inherit; }
+
+    .shell {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 12px;
+      min-height: 100vh;
+      padding: 14px;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    h1 { margin: 0; font-size: 20px; letter-spacing: 0; }
+    .topbar p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 10px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.danger { color: var(--danger); }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 260px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .tab.active { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }
+    .tab .close {
+      width: 18px;
+      height: 18px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      line-height: 16px;
+    }
+    .tab .close:hover { background: #fee4e2; color: var(--danger); }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--soft);
+    }
+    .panel-head h2 { margin: 0; font-size: 15px; }
+    .panel-body { padding: 12px; overflow: auto; }
+    .muted { color: var(--muted); font-size: 12px; }
+
+    .research-grid {
+      display: grid;
+      grid-template-columns: minmax(680px, 1fr) 360px;
+      gap: 12px;
+      min-height: 620px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid var(--line); padding: 8px; vertical-align: top; }
+    th { background: #eef2f6; text-align: left; font-weight: 800; }
+    .score { text-align: right; font-variant-numeric: tabular-nums; }
+    .planner-manager td:last-child,
+    .score-table td:last-child { width: 170px; }
+    .detail-table {
+      min-width: 1320px;
+    }
+    .score-table {
+      min-width: 980px;
+    }
+    .research-scroll {
+      overflow-x: auto;
+      margin-bottom: 18px;
+    }
+    .research-section-title {
+      margin: 4px 0 8px;
+      font-size: 14px;
+    }
+    .editor {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .editor textarea {
+      width: 100%;
+      min-height: 132px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .editor-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .table-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .planner-grid {
+      display: grid;
+      grid-template-columns: 220px 210px minmax(560px, 1fr);
+      gap: 12px;
+      min-height: 610px;
+    }
+    .category { margin-bottom: 14px; }
+    .category-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+    .restaurant .dot, .dot.restaurant { background: var(--restaurant); }
+    .hotel .dot, .dot.hotel { background: var(--hotel); }
+    .attraction .dot, .dot.attraction { background: var(--attraction); }
+    .flight .dot, .dot.flight { background: var(--flight); }
+
+    .box-list { display: grid; gap: 8px; }
+    .box {
+      position: relative;
+      display: grid;
+      gap: 3px;
+      min-height: 54px;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      user-select: none;
+    }
+    .box.restaurant { border-left-color: var(--restaurant); }
+    .box.hotel { border-left-color: var(--hotel); }
+    .box.attraction { border-left-color: var(--attraction); }
+    .box.flight { border-left-color: var(--flight); }
+    .box:hover { border-color: var(--accent); }
+    .box.draggable { cursor: grab; }
+    .box-title { padding-right: 42px; font-size: 12px; font-weight: 800; }
+    .box-meta { color: var(--muted); font-size: 11px; }
+    .box-x {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .box-x:hover { color: var(--danger); border-color: var(--danger); }
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 110px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 13px;
+    }
+
+    .table-shell { display: grid; grid-template-rows: auto 1fr; min-height: 560px; }
+    .top-scroll { height: 18px; overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid var(--line); background: #f8fafc; }
+    .top-scroll-inner { height: 1px; }
+    .grid-wrap { overflow: auto; scrollbar-gutter: stable both-edges; }
+    .itinerary { width: max-content; min-width: 100%; table-layout: fixed; }
+    .itinerary th.date-head, .itinerary td.slot { width: 132px; min-width: 132px; max-width: 132px; }
+    .itinerary th.time-head, .itinerary td.time-cell {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      width: 74px;
+      min-width: 74px;
+      max-width: 74px;
+      text-align: center;
+    }
+    .itinerary th.time-head { z-index: 4; }
+    .itinerary td.time-cell { background: #f8fafc; color: var(--muted); font-weight: 800; }
+    .itinerary th { position: sticky; top: 0; z-index: 3; text-align: center; }
+    .itinerary td.slot { height: 76px; padding: 5px; background: #fff; }
+    .slot.drag-over { outline: 2px solid var(--accent); outline-offset: -3px; background: var(--accent-soft); }
+    .slot-empty { display: grid; place-items: center; min-height: 58px; border: 1px dashed #e5e7eb; border-radius: 7px; color: #9aa4b2; }
+    .slot-box {
+      display: grid;
+      gap: 3px;
+      min-height: 58px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 7px;
+      background: #fff;
+    }
+    .slot-box.restaurant { border-left-color: var(--restaurant); }
+    .slot-box.hotel { border-left-color: var(--hotel); }
+    .slot-box.attraction { border-left-color: var(--attraction); }
+    .slot-box.flight { border-left-color: var(--flight); }
+    .slot-name { font-size: 11px; line-height: 1.25; font-weight: 800; }
+    .slot-note { color: var(--muted); font-size: 10px; line-height: 1.25; }
+
+    .map-panel { margin-top: 12px; }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    #map {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      min-height: 520px;
+      max-height: 760px;
+    }
+    .map-marker {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .3);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .route-diagram {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      min-height: 520px;
+      max-height: 760px;
+      border-top: 1px solid var(--line);
+      background: #eef2f6;
+    }
+    .route-diagram svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .route-label {
+      font: 600 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      fill: #111827;
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 999;
+      max-width: 360px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #111827;
+      color: #fff;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .16s, transform .16s;
+      pointer-events: none;
+      font-size: 13px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <h1>Travel Planner Board</h1>
+        <p>一个固定 researcher tab，多个可编辑 planner tab。数据保存到浏览器 localStorage。</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="loadSampleBtn">加载样例 JSON</button>
+        <button class="btn" id="importBtn">导入 JSON</button>
+        <button class="btn" id="exportBtn">导出 JSON</button>
+        <button class="btn danger" id="resetBtn">清空本地状态</button>
+        <button class="btn primary" id="saveBtn">保存</button>
+        <input id="importInput" type="file" accept="application/json,.json" hidden>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs"></nav>
+    <main id="content"></main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const STORAGE_KEY = "travel-planner-board-v1";
+    const dates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
+    const timeBlocks = ["06:00-08:00", "08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00", "18:00-20:00", "20:00-22:00", "22:00-24:00"];
+    const categories = [
+      ["restaurants", "餐厅", "restaurant"],
+      ["hotels", "住宿", "hotel"],
+      ["attractions", "景点", "attraction"],
+      ["flights", "航班", "flight"]
+    ];
+    const typeLabels = { restaurant: "餐厅", hotel: "住宿", attraction: "景点", flight: "航班" };
+    const routeColors = ["#0f766e", "#dc2626", "#2563eb", "#7c3aed", "#b45309"];
+    const markerColors = { restaurant: "#b45309", hotel: "#2563eb", attraction: "#15803d", flight: "#7c3aed" };
+
+    let state = defaultState();
+    let serverBacked = false;
+    let saveQueue = Promise.resolve();
+    let queryText = "";
+    let memoryText = "";
+    let map;
+    let markerLayer;
+    let routeLayer;
+    let toastTimer;
+
+    function point(id, name, type, lat, lng, note) {
+      return { id, name, type, lat, lng, note, source: "sample", confidence: "medium" };
+    }
+
+    function destination(id, name, score, rank, detail, scores, seed) {
+      return { id, plannerId: stablePlannerId({ id, seed }), name, score, rank, detail, scores, seed };
+    }
+
+    function defaultResearcherSets() {
+      return [
+        {
+          seed: "202609-multi-origin-N4Q8",
+          candidates: [
+            destination(
+              "almaty-tianshan",
+              "阿拉木图 / 天山湖区",
+              78.8,
+              1,
+              {
+                nature: "天山雪山、Kolsai/Kaindy 湖、Charyn Canyon、近郊高山草甸。",
+                culture: "中亚城市、巴扎、俄/哈混合饮食、山地公路旅行。",
+                weather: "9月底适合山地徒步和自驾，早晚冷；高海拔住宿需确认供暖。",
+                reviews: "Airbnb 有山地 retreat、Kolsai 附近 detached house；需按路线收窄。",
+                flights: "上海约 ¥4,840；北京约 ¥5,029-5,072；重庆约 ¥5,818。",
+                cost: "三人机票约 ¥15,687；共享住宿后团队总预算粗估 ¥19k-25k+。",
+                premium: "三地目标价较低，团队溢价风险最低。",
+                duration: "北京去程可直飞段；上海/重庆多为一中转或长中转。"
+              },
+              { nature: 9, culture: 7, weather: 8, reviews: 7, flights: 8, cost: 9, premium: 8, duration: 7 },
+              "N4Q8"
+            ),
+            destination(
+              "georgia-caucasus",
+              "格鲁吉亚 / 高加索",
+              70.0,
+              2,
+              {
+                nature: "大高加索雪山、Kazbegi、Gergeti 教堂山景、峡谷、半荒漠地貌。",
+                culture: "第比利斯古城、酒文化、东正教修道院、硫磺浴、山地村镇。",
+                weather: "9月底适合高加索山地，白天舒适，山上偏冷；需防雨和温差。",
+                reviews: "第比利斯整套房源多，低价约 ¥39,819-71,355 JPY/12晚，多条 4.9+。",
+                flights: "上海约 ¥7,508；北京约 ¥7,088；重庆约 ¥7,499，但重庆和上海长中转明显。",
+                cost: "三人机票约 ¥22,095；住宿低价抵消部分机票。",
+                premium: "价格溢价中低，但上海/重庆存在明显时间溢价。",
+                duration: "北京约 19-22h；上海常见 30h 级别；重庆可能 40h+。"
+              },
+              { nature: 9, culture: 8, weather: 8, reviews: 8, flights: 5, cost: 8, premium: 6, duration: 4 },
+              "N4Q8"
+            ),
+            destination(
+              "slovenia-bled",
+              "斯洛文尼亚 / 布莱德",
+              66.3,
+              3,
+              {
+                nature: "Lake Bled、Bohinj、Triglav、Soca 河谷，湖泊/雪山/峡谷紧凑。",
+                culture: "小城、城堡、阿尔卑斯村镇、葡萄酒和中欧饮食。",
+                weather: "9月底是阿尔卑斯秋季窗口，游客较暑期少；山区天气变化快。",
+                reviews: "布莱德房源质量高，低价房/公寓约 ¥109,604-219,033 JPY/12晚。",
+                flights: "上海约 ¥10,923；北京约 ¥11,744；重庆约 ¥12,439 且绕行较多。",
+                cost: "三人机票约 ¥35,106；团队总预算明显高于中亚/高加索。",
+                premium: "机票绝对价高，重庆溢价和时间成本最高。",
+                duration: "上海/北京约 18-21h；重庆可能 40h+。"
+              },
+              { nature: 8, culture: 7, weather: 8, reviews: 8, flights: 7, cost: 5, premium: 5, duration: 5 },
+              "N4Q8"
+            ),
+            destination(
+              "morocco-atlas",
+              "摩洛哥 / 阿特拉斯 + 撒哈拉",
+              60.0,
+              4,
+              {
+                nature: "阿特拉斯山、撒哈拉边缘、棕榈谷、荒漠/海岸对比。",
+                culture: "马拉喀什老城、柏柏尔村落、riad、集市，人文浓度最高。",
+                weather: "9月底比盛夏好，但马拉喀什和沙漠仍可能热；山地更舒适。",
+                reviews: "riad、villa、木屋约 ¥58,344-250,274 JPY/12晚，多数 4.8-5.0。",
+                flights: "上海约 ¥12,307；北京约 ¥10,391 但回程绕；重庆约 ¥13,123。",
+                cost: "三人机票约 ¥35,821；住宿可控但航班拖累。",
+                premium: "三地机票高且路线绕，团队溢价风险高。",
+                duration: "三地均偏长，常见 30h-50h。"
+              },
+              { nature: 8, culture: 9, weather: 6, reviews: 8, flights: 5, cost: 5, premium: 4, duration: 3 },
+              "N4Q8"
+            )
+          ]
+        },
+        {
+          seed: "202609-global-reroll-K7P2",
+          candidates: [
+            destination("oman-wadis", "阿曼 / 山地与 Wadi", 73.2, 1, genericDetail("Jebel Akhdar、Wadi Shab、沙漠", "山地、峡谷、海岸和阿拉伯人文组合强，适合自驾。", "需查三地到 Muscat", "酒店为主，少量民宿"), { nature: 9, culture: 7, weather: 8, reviews: 7, flights: 6, cost: 7, premium: 7, duration: 7 }, "K7P2"),
+            destination("sri-lanka", "斯里兰卡 / 山地茶园 + 南岸", 71.1, 2, genericDetail("茶园、海岸、国家公园", "自然和人文丰富，节奏可松可紧；雨季窗口需细查。", "亚洲方向较可控", "民宿和精品酒店都多"), { nature: 8, culture: 8, weather: 6, reviews: 8, flights: 7, cost: 8, premium: 6, duration: 6 }, "K7P2"),
+            destination("madeira", "马德拉岛", 68.5, 3, genericDetail("levada 徒步、海崖、Laurisilva 森林", "海岛徒步和悬崖风光强，但三地飞行成本可能偏高。", "欧洲方向多段", "公寓/酒店都可"), { nature: 9, culture: 6, weather: 8, reviews: 8, flights: 5, cost: 5, premium: 6, duration: 5 }, "K7P2"),
+            destination("peru-sacred-valley", "秘鲁 / Sacred Valley", 59.4, 4, genericDetail("安第斯山、峡谷、遗址", "自然和文化都很强，但三地长途飞行和时差不适合作为首选。", "极长途多段", "住宿成熟但总成本高"), { nature: 9, culture: 9, weather: 7, reviews: 8, flights: 3, cost: 3, premium: 4, duration: 2 }, "K7P2")
+          ]
+        }
+      ];
+    }
+
+    function genericDetail(nature, summary, flights, lodging) {
+      return {
+        nature,
+        culture: summary,
+        weather: "季节窗口待 planner 阶段细查。",
+        reviews: "社区评价待接小红书/网页证据。",
+        flights,
+        cost: "成本预算待查实时航班和住宿。",
+        premium: "价格溢价待跑三组对比日期。",
+        duration: "飞行时间待按多出发地分别查询。",
+        lodging
+      };
+    }
+
+    function defaultState() {
+      return {
+        schemaVersion: 1,
+        activeTab: "researcher",
+        researcher: { setIndex: 0, sets: defaultResearcherSets() },
+        planners: [],
+        openPlannerIds: []
+      };
+    }
+
+    function stablePlannerId(destination) {
+      return `planner_${destination.seed || "seed"}_${destination.id}`;
+    }
+
+    function allResearcherCandidates() {
+      return state.researcher.sets.flatMap(set => set.candidates);
+    }
+
+    function plannerForDestination(destination) {
+      const id = stablePlannerId(destination);
+      return state.planners.find(planner => planner.id === id || (planner.destinationId === destination.id && planner.researchSeed === destination.seed));
+    }
+
+    function normalizePlannerIdentity(inputState) {
+      const candidates = inputState.researcher.sets.flatMap(set => set.candidates);
+      const candidateByName = new Map(candidates.map(candidate => [candidate.name, candidate]));
+      const oldToNew = new Map();
+      const unique = new Map();
+
+      inputState.planners.forEach(planner => {
+        const candidate = candidates.find(item => item.id === planner.destinationId && item.seed === planner.researchSeed) || candidateByName.get(planner.destinationName);
+        if (!candidate) {
+          unique.set(planner.id, planner);
+          return;
+        }
+        const stableId = stablePlannerId(candidate);
+        oldToNew.set(planner.id, stableId);
+        planner.id = stableId;
+        planner.destinationId = candidate.id;
+        planner.researchSeed = candidate.seed;
+        if (!planner.updatedAt) planner.updatedAt = planner.createdAt || new Date().toISOString();
+        if (!unique.has(stableId)) unique.set(stableId, planner);
+      });
+
+      inputState.planners = [...unique.values()];
+      inputState.openPlannerIds = [...new Set((inputState.openPlannerIds || []).map(id => oldToNew.get(id) || id))]
+        .filter(id => inputState.planners.some(planner => planner.id === id));
+      if (oldToNew.has(inputState.activeTab)) inputState.activeTab = oldToNew.get(inputState.activeTab);
+      if (inputState.activeTab !== "researcher" && !inputState.planners.some(planner => planner.id === inputState.activeTab)) {
+        inputState.activeTab = "researcher";
+      }
+    }
+
+    function loadState() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        const normalized = normalizeImportedState(parsed);
+        if (normalized) return normalized;
+      } catch (_) {}
+      return defaultState();
+    }
+
+    function normalizeImportedState(input) {
+      if (!input || !input.researcher || !Array.isArray(input.planners)) return null;
+      if (!Array.isArray(input.researcher.sets) || !input.researcher.sets.length) return null;
+      const first = input.researcher?.sets?.[0]?.candidates?.[0];
+      if (!first?.detail || !first?.scores) return null;
+      const next = {
+        schemaVersion: input.schemaVersion || 1,
+        activeTab: input.activeTab || "researcher",
+        researcher: {
+          setIndex: Number.isInteger(input.researcher.setIndex) ? input.researcher.setIndex : 0,
+          sets: input.researcher.sets
+        },
+        planners: input.planners,
+        openPlannerIds: Array.isArray(input.openPlannerIds) ? input.openPlannerIds : input.planners.map(planner => planner.id)
+      };
+      normalizePlannerIdentity(next);
+      return next;
+    }
+
+    function canUseApi() {
+      return location.protocol === "http:" || location.protocol === "https:";
+    }
+
+    async function apiJson(path, options = {}) {
+      const response = await fetch(path, {
+        cache: "no-store",
+        headers: { "content-type": "application/json", ...(options.headers || {}) },
+        ...options
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function loadTextResource(path) {
+      if (!canUseApi()) return "";
+      try {
+        return (await apiJson(path)).content || "";
+      } catch (_) {
+        return "";
+      }
+    }
+
+    async function saveTextResource(path, content) {
+      if (!serverBacked) {
+        toast("需要通过 node app/server.js 打开页面才能保存。");
+        return false;
+      }
+      const result = await apiJson(path, { method: "PUT", body: JSON.stringify({ content }) });
+      return result.content || "";
+    }
+
+    async function loadInitialState() {
+      if (canUseApi()) {
+        try {
+          const imported = normalizeImportedState(await apiJson("/api/board"));
+          if (imported) {
+            serverBacked = true;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(imported));
+            return imported;
+          }
+        } catch (_) {
+          serverBacked = false;
+        }
+      }
+      return loadState();
+    }
+
+    function persistToServer(snapshot) {
+      if (!serverBacked) return;
+      saveQueue = saveQueue
+        .catch(() => {})
+        .then(() => apiJson("/api/board", { method: "PUT", body: JSON.stringify(snapshot) }))
+        .catch(() => {
+          serverBacked = false;
+          toast("后端保存失败，已临时降级到浏览器 localStorage。");
+        });
+    }
+
+    function saveState(show = true) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      persistToServer(JSON.parse(JSON.stringify(state)));
+      if (show) toast(serverBacked ? "已保存到 workspace/app-state/board.json。" : "已保存到浏览器 localStorage。");
+    }
+
+    function applyServerState(nextState) {
+      const normalized = normalizeImportedState(nextState);
+      if (!normalized) return false;
+      state = normalized;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return true;
+    }
+
+    async function runAgentAction(path, payload = {}) {
+      if (!serverBacked) throw new Error("server unavailable");
+      const result = await apiJson(path, { method: "POST", body: JSON.stringify(payload) });
+      if (!applyServerState(result.state)) throw new Error("invalid server state");
+      return result;
+    }
+
+    function activeResearchSet() {
+      return state.researcher.sets[state.researcher.setIndex % state.researcher.sets.length];
+    }
+
+    function render() {
+      renderTabs();
+      if (state.activeTab === "researcher") renderResearcher();
+      else renderPlanner(state.planners.find(p => p.id === state.activeTab));
+      saveState(false);
+    }
+
+    function renderTabs() {
+      const tabs = document.getElementById("tabs");
+      tabs.innerHTML = "";
+      tabs.appendChild(tabButton("researcher", "researcher", false));
+      state.openPlannerIds
+        .map(id => state.planners.find(planner => planner.id === id))
+        .filter(Boolean)
+        .forEach(planner => tabs.appendChild(tabButton(planner.id, planner.title, true)));
+    }
+
+    function tabButton(id, label, closable) {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = `tab ${state.activeTab === id ? "active" : ""}`;
+      tab.innerHTML = `<span>${escapeHtml(label)}</span>`;
+      tab.addEventListener("click", () => {
+        state.activeTab = id;
+        render();
+      });
+      if (closable) {
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "close";
+        close.textContent = "x";
+        close.title = "保存并关闭 tab，planner 仍保存在 researcher 管理表";
+        close.addEventListener("click", event => {
+          event.stopPropagation();
+          closePlannerTab(id);
+        });
+        tab.appendChild(close);
+      }
+      return tab;
+    }
+
+    function scoreActionButton(destination) {
+      const existing = plannerForDestination(destination);
+      const label = existing ? "加载 planner" : "生成 planner";
+      const className = existing ? "btn" : "btn primary";
+      return `<button class="${className}" data-generate="${stablePlannerId(destination)}">${label}</button>`;
+    }
+
+    function renderResearcher() {
+      destroyMap();
+      const set = activeResearchSet();
+      document.getElementById("content").innerHTML = `
+        <section class="research-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>researcher</h2>
+                <div class="muted">seed: ${escapeHtml(set.seed)}｜只有一个 researcher tab，不能关闭。</div>
+              </div>
+              <button class="btn primary" id="rerollBtn">reroll 新地点</button>
+            </div>
+            <div class="panel-body">
+              <section class="editor">
+                <h3 class="research-section-title">当前 query</h3>
+                <textarea id="queryEditor" spellcheck="false">${escapeHtml(queryText)}</textarea>
+                <div class="editor-actions">
+                  <button class="btn" id="saveQueryBtn">保存 query</button>
+                </div>
+              </section>
+
+              <h3 class="research-section-title">细节表</h3>
+              <div class="research-scroll">
+                <table class="detail-table">
+                  <thead>
+                    <tr>
+                      <th>地点</th>
+                      <th>自然特色</th>
+                      <th>人文特色</th>
+                      <th>季节天气</th>
+                      <th>网络评价</th>
+                      <th>各出发地航班数量</th>
+                      <th>各出发地成本预算</th>
+                      <th>各出发地价格溢价</th>
+                      <th>各出发地飞行时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${set.candidates.map(row => `
+                      <tr>
+                        <td><strong>${escapeHtml(row.name)}</strong></td>
+                        <td>${escapeHtml(row.detail.nature)}</td>
+                        <td>${escapeHtml(row.detail.culture)}</td>
+                        <td>${escapeHtml(row.detail.weather)}</td>
+                        <td>${escapeHtml(row.detail.reviews)}</td>
+                        <td>${escapeHtml(row.detail.flights)}</td>
+                        <td>${escapeHtml(row.detail.cost || row.detail.lodging || "")}</td>
+                        <td>${escapeHtml(row.detail.premium)}</td>
+                        <td>${escapeHtml(row.detail.duration)}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              </div>
+
+              <h3 class="research-section-title">评分表</h3>
+              <div class="research-scroll">
+                <table class="score-table">
+                  <thead>
+                    <tr>
+                      <th>地点</th>
+                      <th>自然特色</th>
+                      <th>人文特色</th>
+                      <th>季节天气</th>
+                      <th>网络评价</th>
+                      <th>航班数量</th>
+                      <th>成本预算</th>
+                      <th>价格溢价</th>
+                      <th>飞行时间</th>
+                      <th>总分</th>
+                      <th>排名</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                <tbody>
+                  ${set.candidates.map(row => `
+                    <tr>
+                      <td><strong>${escapeHtml(row.name)}</strong></td>
+                      <td class="score">${row.scores.nature}</td>
+                      <td class="score">${row.scores.culture}</td>
+                      <td class="score">${row.scores.weather}</td>
+                      <td class="score">${row.scores.reviews}</td>
+                      <td class="score">${row.scores.flights}</td>
+                      <td class="score">${row.scores.cost}</td>
+                      <td class="score">${row.scores.premium}</td>
+                      <td class="score">${row.scores.duration}</td>
+                      <td class="score">${row.score.toFixed(1)}</td>
+                      <td class="score">${row.rank}</td>
+                      <td>${scoreActionButton(row)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>planner 管理</h2>
+              <span class="muted">${state.planners.length} 个 planner</span>
+            </div>
+            <div class="panel-body">
+              <table class="planner-manager">
+                <thead><tr><th>名称</th><th>操作</th></tr></thead>
+                <tbody>
+                  ${state.planners.length ? state.planners.map(planner => `
+                    <tr>
+                      <td><strong>${escapeHtml(planner.title)}</strong><br><span class="muted">${escapeHtml(planner.destinationName)}｜更新：${escapeHtml(formatTime(planner.updatedAt || planner.createdAt))}</span></td>
+                      <td class="table-actions">
+                        <button class="btn" data-open="${planner.id}">跳转/加载</button>
+                        <button class="btn danger" data-delete="${planner.id}">删除</button>
+                      </td>
+                    </tr>
+                  `).join("") : `<tr><td colspan="2"><span class="muted">还没有生成 planner。</span></td></tr>`}
+                </tbody>
+              </table>
+              <section class="editor" style="margin-top: 14px;">
+                <h3 class="research-section-title">agent memory</h3>
+                <textarea id="memoryEditor" spellcheck="false">${escapeHtml(memoryText)}</textarea>
+                <div class="editor-actions">
+                  <button class="btn" id="saveMemoryBtn">保存 memory</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      `;
+      document.getElementById("saveQueryBtn").addEventListener("click", async () => {
+        queryText = document.getElementById("queryEditor").value;
+        const saved = await saveTextResource("/api/query", queryText);
+        if (saved !== false) {
+          queryText = saved;
+          toast("query 已保存。");
+        }
+      });
+      document.getElementById("saveMemoryBtn").addEventListener("click", async () => {
+        memoryText = document.getElementById("memoryEditor").value;
+        const saved = await saveTextResource("/api/memory", memoryText);
+        if (saved !== false) {
+          memoryText = saved;
+          toast("memory 已保存。");
+        }
+      });
+      document.getElementById("rerollBtn").addEventListener("click", async () => {
+        queryText = document.getElementById("queryEditor").value;
+        if (serverBacked) {
+          try {
+            await runAgentAction("/api/research/reroll", { query: queryText });
+            memoryText = await loadTextResource("/api/memory");
+            render();
+            toast("runner 已生成一组新候选地点。");
+            return;
+          } catch (_) {
+            serverBacked = false;
+            toast("runner 调用失败，已切回本地 reroll。");
+          }
+        }
+        state.researcher.setIndex = (state.researcher.setIndex + 1) % state.researcher.sets.length;
+        render();
+      });
+      document.querySelectorAll("[data-generate]").forEach(btn => {
+        btn.addEventListener("click", () => generatePlanner(btn.dataset.generate));
+      });
+      document.querySelectorAll("[data-open]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          openPlannerTab(btn.dataset.open);
+          state.activeTab = btn.dataset.open;
+          render();
+        });
+      });
+      document.querySelectorAll("[data-delete]").forEach(btn => {
+        btn.addEventListener("click", () => deletePlanner(btn.dataset.delete));
+      });
+    }
+
+    async function generatePlanner(plannerKey) {
+      if (serverBacked) {
+        try {
+          const result = await runAgentAction("/api/planners", { destinationKey: plannerKey });
+          render();
+          toast(result.created ? `runner 已生成 planner：${result.planner.title}` : `已加载 planner：${result.planner.title}`);
+          return;
+        } catch (_) {
+          serverBacked = false;
+          toast("runner 调用失败，已切回本地生成。");
+        }
+      }
+      const source = allResearcherCandidates().find(candidate => stablePlannerId(candidate) === plannerKey || candidate.id === plannerKey);
+      if (!source) return;
+      const existing = plannerForDestination(source);
+      if (existing) {
+        openPlannerTab(existing.id);
+        state.activeTab = existing.id;
+        render();
+        toast(`已加载 planner：${existing.title}`);
+        return;
+      }
+      const planner = makePlanner(source);
+      state.planners.push(planner);
+      openPlannerTab(planner.id);
+      state.activeTab = planner.id;
+      render();
+      toast(`已生成 planner：${planner.title}`);
+    }
+
+    function deletePlanner(id) {
+      state.planners = state.planners.filter(planner => planner.id !== id);
+      state.openPlannerIds = state.openPlannerIds.filter(openId => openId !== id);
+      if (state.activeTab === id) state.activeTab = "researcher";
+      render();
+    }
+
+    function openPlannerTab(id) {
+      if (!state.openPlannerIds.includes(id)) state.openPlannerIds.push(id);
+    }
+
+    function closePlannerTab(id) {
+      const planner = state.planners.find(item => item.id === id);
+      if (planner) planner.updatedAt = new Date().toISOString();
+      state.openPlannerIds = state.openPlannerIds.filter(openId => openId !== id);
+      if (state.activeTab === id) state.activeTab = "researcher";
+      saveState(false);
+      render();
+      toast("已保存并关闭 tab；planner 可从 researcher 管理表继续打开。");
+    }
+
+    function savePlanner(planner) {
+      planner.updatedAt = new Date().toISOString();
+      saveState(false);
+      renderTabs();
+      toast(`已保存 planner：${planner.title}`);
+    }
+
+    function makePlanner(destination) {
+      const isGeorgia = destination.id === "georgia-caucasus";
+      const id = stablePlannerId(destination);
+      const base = {
+        id,
+        destinationId: destination.id,
+        researchSeed: destination.seed,
+        title: `${destination.name} planner`,
+        destinationName: destination.name,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        candidates: isGeorgia ? georgiaCandidates() : genericCandidates(destination),
+        staging: [],
+        itinerary: {}
+      };
+      if (isGeorgia) prefillGeorgia(base);
+      else prefillGeneric(base);
+      return base;
+    }
+
+    function georgiaCandidates() {
+      return {
+        restaurants: [
+          point("r1", "Shavi Lomi", "restaurant", 41.6987, 44.8064, "格鲁吉亚菜｜晚餐｜需预约"),
+          point("r2", "Cafe Littera", "restaurant", 41.6947, 44.8001, "庭院餐厅｜当地菜"),
+          point("r3", "Mapshalia", "restaurant", 41.7101, 44.7992, "家常菜｜预算友好"),
+          point("r4", "Rooms Hotel Kazbegi Restaurant", "restaurant", 42.6575, 44.6414, "Kazbegi｜山景晚餐"),
+          point("r5", "Salobie Bia", "restaurant", 41.6957, 44.8017, "当地菜｜午餐")
+        ],
+        hotels: [
+          point("h1", "Rooms Hotel Tbilisi", "hotel", 41.7041, 44.7878, "Vera 区｜城市基地"),
+          point("h2", "Stamba Hotel", "hotel", 41.7045, 44.7871, "Vera 区｜设计酒店"),
+          point("h3", "Rooms Hotel Kazbegi", "hotel", 42.6575, 44.6414, "Kazbegi｜山景基地")
+        ],
+        attractions: [
+          point("a1", "Narikala Fortress", "attraction", 41.6880, 44.8086, "老城高点"),
+          point("a2", "Sulfur Baths", "attraction", 41.6877, 44.8115, "硫磺浴区"),
+          point("a3", "Gergeti Trinity Church", "attraction", 42.6620, 44.6208, "Kazbegi 标志景观"),
+          point("a4", "Zhinvali Reservoir", "attraction", 42.1646, 44.7715, "去 Kazbegi 路上湖景"),
+          point("a5", "Jvari Monastery", "attraction", 41.8387, 44.7339, "Mtskheta 高点"),
+          point("a6", "Chronicle of Georgia", "attraction", 41.7712, 44.8106, "城市北部纪念碑")
+        ],
+        flights: [
+          point("f0", "三地出发 -> TBS 机场集合", "flight", 41.6692, 44.9547, "上海/北京/重庆分别抵达"),
+          point("f4", "TBS -> 三地返程待选航班", "flight", 41.6692, 44.9547, "各自返程")
+        ]
+      };
+    }
+
+    function genericCandidates(destination) {
+      const defaults = destinationDefaults(destination);
+      return {
+        restaurants: [point("r1", defaults.restaurant.name, "restaurant", defaults.restaurant.lat, defaults.restaurant.lng, "由 agent 后续补充")],
+        hotels: [point("h1", defaults.hotel.name, "hotel", defaults.hotel.lat, defaults.hotel.lng, "由 Booking/Airbnb 后续补充")],
+        attractions: [point("a1", defaults.attraction.name || destination.name, "attraction", defaults.attraction.lat, defaults.attraction.lng, destination.summary)],
+        flights: [point("f1", defaults.flight.name, "flight", defaults.flight.lat, defaults.flight.lng, "由 FlyAI 后续补充")]
+      };
+    }
+
+    function destinationDefaults(destination) {
+      const defaults = {
+        "albania-accursed-mountains": {
+          flight: { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206 },
+          restaurant: { name: "Shkoder old town restaurant area", lat: 42.0686, lng: 19.5126 },
+          hotel: { name: "Theth village guesthouse area", lat: 42.3959, lng: 19.7745 },
+          attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 }
+        },
+        "azores": {
+          flight: { name: "Ponta Delgada Airport", lat: 37.7412, lng: -25.6979 },
+          restaurant: { name: "Ponta Delgada restaurant area", lat: 37.7410, lng: -25.6756 },
+          hotel: { name: "Ponta Delgada hotel area", lat: 37.7394, lng: -25.6687 },
+          attraction: { name: "Sete Cidades", lat: 37.8620, lng: -25.7948 }
+        },
+        "laos-north": {
+          flight: { name: "Luang Prabang Airport", lat: 19.8973, lng: 102.1608 },
+          restaurant: { name: "Luang Prabang old town restaurant area", lat: 19.8856, lng: 102.1348 },
+          hotel: { name: "Luang Prabang old town hotel area", lat: 19.8871, lng: 102.1359 },
+          attraction: { name: "Kuang Si Waterfall", lat: 19.7493, lng: 101.9920 }
+        }
+      };
+      return defaults[destination.id] || {
+        flight: { name: "多出发地航班待查", lat: 41.6692, lng: 44.9547 },
+        restaurant: { name: "当地特色餐厅待查", lat: 41.7151, lng: 44.8271 },
+        hotel: { name: "核心住宿区域待选", lat: 41.7151, lng: 44.8271 },
+        attraction: { name: destination.name, lat: 41.7151, lng: 44.8271 }
+      };
+    }
+
+    function put(planner, date, time, id, note) {
+      const item = Object.values(planner.candidates).flat().find(candidate => candidate.id === id);
+      if (!item) return;
+      planner.itinerary[`${date}|${time}`] = { ...item, instanceId: `${id}_${date}_${time}`, itemId: id, note: note || item.note };
+    }
+
+    function prefillGeorgia(planner) {
+      put(planner, "9/25", "06:00-08:00", "f0", "上海/北京/重庆分别飞往 TBS");
+      put(planner, "9/25", "08:00-10:00", "f0", "入境/取行李/等待所有人集合");
+      put(planner, "9/25", "10:00-12:00", "h1", "TBS -> 酒店｜机场交通估算");
+      put(planner, "9/25", "12:00-14:00", "r3", "午餐｜家常格鲁吉亚菜");
+      put(planner, "9/25", "14:00-16:00", "a1", "老城高点");
+      put(planner, "9/25", "16:00-18:00", "a2", "硫磺浴区");
+      put(planner, "9/25", "18:00-20:00", "r1", "晚餐｜建议预约");
+      put(planner, "9/25", "20:00-22:00", "h1", "回酒店休息");
+      put(planner, "9/25", "22:00-24:00", "h1", "住宿");
+      put(planner, "9/26", "06:00-08:00", "h1", "早餐/退房");
+      put(planner, "9/26", "08:00-10:00", "a4", "Tbilisi -> Zhinvali");
+      put(planner, "9/26", "10:00-12:00", "a4", "湖区停留/拍照");
+      put(planner, "9/26", "12:00-14:00", "r4", "午餐｜Kazbegi 山景基地");
+      put(planner, "9/26", "14:00-16:00", "a3", "Gergeti Trinity Church");
+      put(planner, "9/26", "16:00-18:00", "a3", "山景缓冲");
+      put(planner, "9/26", "18:00-20:00", "r4", "晚餐");
+      put(planner, "9/26", "20:00-22:00", "h3", "入住/休息");
+      put(planner, "9/26", "22:00-24:00", "h3", "住宿");
+      put(planner, "9/27", "06:00-08:00", "h3", "早餐/山景");
+      put(planner, "9/27", "08:00-10:00", "h3", "Kazbegi -> Tbilisi");
+      put(planner, "9/27", "10:00-12:00", "a5", "Jvari Monastery");
+      put(planner, "9/27", "12:00-14:00", "r5", "午餐");
+      put(planner, "9/27", "14:00-16:00", "a6", "Chronicle of Georgia");
+      put(planner, "9/27", "16:00-18:00", "r2", "早晚餐/咖啡");
+      put(planner, "9/27", "18:00-20:00", "f4", "市区 -> TBS 机场");
+      put(planner, "9/27", "20:00-22:00", "f4", "返程航班");
+      put(planner, "9/27", "22:00-24:00", "f4", "飞行/转机中");
+    }
+
+    function prefillGeneric(planner) {
+      put(planner, "9/25", "06:00-08:00", "f1", "多出发地航班待查");
+      put(planner, "9/25", "12:00-14:00", "r1", "午餐待查");
+      put(planner, "9/25", "14:00-16:00", "a1", "核心景点占位");
+      put(planner, "9/25", "22:00-24:00", "h1", "住宿待选");
+    }
+
+    function renderPlanner(planner) {
+      if (!planner) {
+        state.activeTab = "researcher";
+        render();
+        return;
+      }
+      document.getElementById("content").innerHTML = `
+        <section class="planner-grid">
+          <aside class="panel">
+            <div class="panel-head"><h2>候选池</h2></div>
+            <div class="panel-body" id="candidatePanel"></div>
+          </aside>
+          <aside class="panel">
+            <div class="panel-head"><h2>预选区</h2></div>
+            <div class="panel-body">
+              <div class="box-list" id="stagingList"></div>
+              <div class="empty" id="stagingEmpty">点击左侧候选后，这里出现可拖拽 box。</div>
+            </div>
+          </aside>
+          <section class="panel table-shell">
+            <div class="panel-head">
+              <div>
+                <h2>${escapeHtml(planner.title)}</h2>
+                <div class="muted">横向滚动查看更多日期｜右键单元格清空</div>
+              </div>
+              <button class="btn primary" id="savePlannerBtn">保存 planner</button>
+            </div>
+            <div class="top-scroll" id="topScroll"><div class="top-scroll-inner" id="topScrollInner"></div></div>
+            <div class="grid-wrap" id="gridWrap"><table class="itinerary" id="itineraryTable"></table></div>
+          </section>
+        </section>
+        <section class="panel map-panel">
+          <div class="panel-head">
+            <h2>地图路线</h2>
+            <div class="actions">
+              <div class="legend">
+                <span><span class="dot restaurant"></span>餐厅</span>
+                <span><span class="dot hotel"></span>住宿</span>
+                <span><span class="dot attraction"></span>景点</span>
+                <span><span class="dot flight"></span>航班</span>
+              </div>
+              <button class="btn" id="routePlannerBtn">计算路线</button>
+            </div>
+          </div>
+          <div class="muted" style="padding: 8px 12px; border-bottom: 1px solid var(--line);">${escapeHtml(planner.route?.summary || "地图按当前表格点位连线；点击计算路线会让 runner 写入 route 摘要。")}</div>
+          <div id="map"></div>
+        </section>
+      `;
+      renderCandidatePool(planner);
+      renderStaging(planner);
+      renderItinerary(planner);
+      document.getElementById("savePlannerBtn").addEventListener("click", () => savePlanner(planner));
+      document.getElementById("routePlannerBtn").addEventListener("click", () => calculateRoute(planner));
+      initTableScrollSync();
+      initMap(planner);
+    }
+
+    async function calculateRoute(planner) {
+      if (serverBacked) {
+        try {
+          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/route`);
+          render();
+          toast(result.route.summary);
+          return;
+        } catch (_) {
+          serverBacked = false;
+          toast("runner 路线计算失败，地图仍按表格点位连线。");
+        }
+      } else {
+        toast("本地静态模式只显示地图连线。");
+      }
+    }
+
+    function renderCandidatePool(planner) {
+      const panel = document.getElementById("candidatePanel");
+      panel.innerHTML = "";
+      categories.forEach(([key, label, type]) => {
+        const wrap = document.createElement("section");
+        wrap.className = `category ${type}`;
+        wrap.innerHTML = `<div class="category-head"><span><span class="dot ${type}"></span>${label}</span><button class="btn" data-add="${key}">推荐一个</button></div><div class="box-list"></div>`;
+        const list = wrap.querySelector(".box-list");
+        planner.candidates[key].forEach(candidate => {
+          list.appendChild(box(candidate, () => {
+            planner.staging.push(instance(candidate));
+            planner.updatedAt = new Date().toISOString();
+            renderPlanner(planner);
+            toast(`已加入预选区：${candidate.name}`);
+          }));
+        });
+        wrap.querySelector("[data-add]").addEventListener("click", () => addStaticCandidate(planner, key, type));
+        panel.appendChild(wrap);
+      });
+    }
+
+    async function addStaticCandidate(planner, key, type) {
+      if (serverBacked) {
+        try {
+          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/recommend`, { category: key });
+          render();
+          toast(`runner 已推荐：${result.item.name}`);
+          return;
+        } catch (_) {
+          serverBacked = false;
+          toast("runner 推荐失败，已切回本地占位。");
+        }
+      }
+      const next = point(`${type}_${Date.now()}`, `新${typeLabels[type]}候选`, type, 41.7151 + Math.random() * .05, 44.8271 + Math.random() * .05, "静态推荐占位｜后续接 agent");
+      planner.candidates[key].push(next);
+      planner.updatedAt = new Date().toISOString();
+      renderPlanner(planner);
+    }
+
+    function instance(candidate) {
+      return { ...candidate, instanceId: `${candidate.id}_${Date.now()}_${Math.random().toString(16).slice(2)}`, itemId: candidate.id };
+    }
+
+    function renderStaging(planner) {
+      const list = document.getElementById("stagingList");
+      const empty = document.getElementById("stagingEmpty");
+      list.innerHTML = "";
+      planner.staging.forEach(item => list.appendChild(box(item, null, true, planner)));
+      empty.style.display = planner.staging.length ? "none" : "grid";
+    }
+
+    function box(item, onClick, draggable = false, planner = null) {
+      const el = document.createElement("div");
+      el.className = `box ${item.type} ${draggable ? "draggable" : ""}`;
+      el.innerHTML = `<div class="box-title">${escapeHtml(item.name)}</div><div class="box-meta">${typeLabels[item.type]}｜${escapeHtml(item.note || "")}</div>`;
+      if (onClick) el.addEventListener("click", onClick);
+      if (draggable) {
+        el.draggable = true;
+        el.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", item.instanceId));
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "box-x";
+        x.textContent = "x";
+        x.addEventListener("click", event => {
+          event.stopPropagation();
+          planner.staging = planner.staging.filter(i => i.instanceId !== item.instanceId);
+          planner.updatedAt = new Date().toISOString();
+          renderPlanner(planner);
+        });
+        el.appendChild(x);
+      }
+      return el;
+    }
+
+    function renderItinerary(planner) {
+      const table = document.getElementById("itineraryTable");
+      table.innerHTML = "";
+      table.innerHTML = `<thead><tr><th class="time-head">时间</th>${dates.map(date => `<th class="date-head">${date}</th>`).join("")}</tr></thead>`;
+      const tbody = document.createElement("tbody");
+      timeBlocks.forEach(time => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td class="time-cell">${time}</td>`;
+        dates.forEach(date => {
+          const slot = document.createElement("td");
+          const key = `${date}|${time}`;
+          slot.className = "slot";
+          slot.dataset.key = key;
+          slot.addEventListener("dragover", event => {
+            event.preventDefault();
+            slot.classList.add("drag-over");
+          });
+          slot.addEventListener("dragleave", () => slot.classList.remove("drag-over"));
+          slot.addEventListener("drop", event => {
+            event.preventDefault();
+            slot.classList.remove("drag-over");
+            const id = event.dataTransfer.getData("text/plain");
+            const idx = planner.staging.findIndex(item => item.instanceId === id);
+            if (idx < 0) return;
+            const [item] = planner.staging.splice(idx, 1);
+            planner.itinerary[key] = item;
+            planner.updatedAt = new Date().toISOString();
+            renderPlanner(planner);
+          });
+          slot.addEventListener("contextmenu", event => {
+            event.preventDefault();
+            delete planner.itinerary[key];
+            planner.updatedAt = new Date().toISOString();
+            renderPlanner(planner);
+          });
+          slot.appendChild(slotContent(planner.itinerary[key]));
+          row.appendChild(slot);
+        });
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      syncTopScrollWidth();
+    }
+
+    function slotContent(item) {
+      const div = document.createElement("div");
+      if (!item) {
+        div.className = "slot-empty";
+        div.textContent = "拖入地点";
+        return div;
+      }
+      div.className = `slot-box ${item.type}`;
+      div.innerHTML = `<div class="slot-name">${escapeHtml(item.name)}</div><div class="slot-note">${typeLabels[item.type]}｜${escapeHtml(item.note || "")}</div>`;
+      return div;
+    }
+
+    function initTableScrollSync() {
+      const top = document.getElementById("topScroll");
+      const grid = document.getElementById("gridWrap");
+      let lock = false;
+      top.addEventListener("scroll", () => {
+        if (lock) return;
+        lock = true;
+        grid.scrollLeft = top.scrollLeft;
+        lock = false;
+      });
+      grid.addEventListener("scroll", () => {
+        if (lock) return;
+        lock = true;
+        top.scrollLeft = grid.scrollLeft;
+        lock = false;
+      });
+      window.addEventListener("resize", syncTopScrollWidth);
+      syncTopScrollWidth();
+    }
+
+    function syncTopScrollWidth() {
+      const table = document.getElementById("itineraryTable");
+      const inner = document.getElementById("topScrollInner");
+      if (table && inner) inner.style.width = `${table.scrollWidth}px`;
+    }
+
+    function initMap(planner) {
+      destroyMap();
+      renderRouteDiagram(planner);
+    }
+
+    function destroyMap() {
+      if (map) {
+        map.remove();
+        map = null;
+      }
+    }
+
+    function routeCoordinates(planner) {
+      if (planner.route?.geometry?.type === "LineString" && Array.isArray(planner.route.geometry.coordinates)) {
+        return planner.route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
+      }
+      return scheduledPoints(planner).map(({ item }) => ({ lat: item.lat, lng: item.lng }));
+    }
+
+    function scheduledPoints(planner) {
+      return Object.entries(planner.itinerary || {})
+        .map(([slot, item]) => ({ slot, item }))
+        .filter(({ item }) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+        .sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
+    }
+
+    function slotOrder(slot) {
+      const [date, time] = String(slot).split("|");
+      const dateIndex = dates.indexOf(date);
+      const timeIndex = timeBlocks.indexOf(time);
+      return (dateIndex < 0 ? 999 : dateIndex) * 100 + (timeIndex < 0 ? 99 : timeIndex);
+    }
+
+    function renderRouteDiagram(planner) {
+      const el = document.getElementById("map");
+      const route = routeCoordinates(planner);
+      const scheduled = scheduledPoints(planner);
+      const all = [...route, ...scheduled.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      el.className = "route-diagram";
+      if (!all.length) {
+        el.innerHTML = `<svg viewBox="0 0 900 600" role="img" aria-label="route diagram"><text x="450" y="300" text-anchor="middle" class="route-label">还没有可绘制的地点</text></svg>`;
+        return;
+      }
+
+      const width = 900;
+      const height = 600;
+      const pad = 64;
+      const minLat = Math.min(...all.map(p => p.lat));
+      const maxLat = Math.max(...all.map(p => p.lat));
+      const minLng = Math.min(...all.map(p => p.lng));
+      const maxLng = Math.max(...all.map(p => p.lng));
+      const latSpan = Math.max(maxLat - minLat, 0.0001);
+      const lngSpan = Math.max(maxLng - minLng, 0.0001);
+      const project = point => ({
+        x: pad + ((point.lng - minLng) / lngSpan) * (width - pad * 2),
+        y: height - pad - ((point.lat - minLat) / latSpan) * (height - pad * 2)
+      });
+      const routePath = route.map(project).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      const directPath = scheduled.map(({ item }) => project(item)).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      const markerGroups = [];
+      scheduled.forEach((entry, index) => {
+        const key = `${entry.item.lat.toFixed(5)},${entry.item.lng.toFixed(5)}`;
+        let group = markerGroups.find(item => item.key === key);
+        if (!group) {
+          group = { key, entries: [] };
+          markerGroups.push(group);
+        }
+        group.entries.push({ ...entry, index });
+      });
+      const markers = markerGroups.map(group => {
+        const first = group.entries[0];
+        const p = project(first.item);
+        const color = markerColors[first.item.type] || "#111827";
+        const numberLabel = group.entries.length === 1
+          ? String(first.index + 1)
+          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const labelText = group.entries.map(({ item }) => item.name).join(" / ");
+        const label = escapeHtml(labelText);
+        const short = label.length > 28 ? `${label.slice(0, 28)}...` : label;
+        const title = group.entries
+          .map(({ slot, item, index }) => `${index + 1}. ${item.name} | ${slot} | ${item.note || ""}`)
+          .join("\n");
+        return `
+          <g>
+            <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="16" fill="${color}" stroke="#fff" stroke-width="3"></circle>
+            <text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" fill="#fff" font-size="11" font-weight="800">${numberLabel}</text>
+            <text x="${(p.x + 18).toFixed(1)}" y="${(p.y - 12).toFixed(1)}" class="route-label">${short}</text>
+            <title>${escapeHtml(title)}</title>
+          </g>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="route diagram">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="#eef2f6"></rect>
+          <path d="M ${pad} ${height - pad} L ${width - pad} ${height - pad} L ${width - pad} ${pad}" fill="none" stroke="#cbd5e1" stroke-width="1"></path>
+          ${directPath ? `<polyline points="${directPath}" fill="none" stroke="#94a3b8" stroke-width="4" stroke-dasharray="8 8" opacity=".75"></polyline>` : ""}
+          ${routePath ? `<polyline points="${routePath}" fill="none" stroke="#111827" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>` : ""}
+          ${markers}
+          <text x="${pad}" y="${height - 24}" class="route-label">${escapeHtml(planner.route?.summary || "按表格地点绘制路线图")}</text>
+        </svg>
+      `;
+    }
+
+    function updateMap(planner) {
+      if (!map) return;
+      markerLayer.clearLayers();
+      routeLayer.clearLayers();
+      const scheduled = scheduledPoints(planner);
+      const boundsPoints = scheduled.map(({ item }) => [item.lat, item.lng]);
+      scheduled.forEach(({ slot, item }, index) => {
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="map-marker" style="background:${markerColors[item.type] || "#111827"}">${index + 1}</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -16]
+        });
+        L.marker([item.lat, item.lng], { icon })
+          .bindPopup(`<strong>${escapeHtml(item.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[item.type]}｜${escapeHtml(item.note || "")}`)
+          .addTo(markerLayer);
+      });
+      dates.forEach((date, idx) => {
+        const pts = timeBlocks.map(time => planner.itinerary[`${date}|${time}`]).filter(item => item && Number.isFinite(item.lat) && Number.isFinite(item.lng));
+        if (pts.length > 1) {
+          L.polyline(pts.map(item => [item.lat, item.lng]), { color: routeColors[idx % routeColors.length], weight: 4, opacity: .78 }).addTo(routeLayer);
+        }
+      });
+      if (planner.route?.geometry?.type === "LineString" && Array.isArray(planner.route.geometry.coordinates)) {
+        const routeLatLngs = planner.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+        routeLatLngs.forEach(point => boundsPoints.push(point));
+        L.polyline(
+          routeLatLngs,
+          { color: "#111827", weight: 5, opacity: .85, dashArray: planner.route.source === "openrouteservice" ? null : "8 7" }
+        ).bindPopup(escapeHtml(planner.route.summary || "route")).addTo(routeLayer);
+      }
+      const bounds = L.latLngBounds(boundsPoints);
+      if (bounds.isValid()) map.fitBounds(bounds.pad(.22), { animate: false, maxZoom: 13 });
+    }
+
+    function toast(message) {
+      const el = document.getElementById("toast");
+      el.textContent = message;
+      el.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove("show"), 1700);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function formatTime(value) {
+      if (!value) return "未保存";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    document.getElementById("saveBtn").addEventListener("click", () => saveState(true));
+    document.getElementById("loadSampleBtn").addEventListener("click", async () => {
+      try {
+        const response = await fetch("data/board-state.sample.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const imported = normalizeImportedState(await response.json());
+        if (!imported) throw new Error("invalid board state");
+        state = imported;
+        saveState(false);
+        render();
+        toast("已加载 app/data/board-state.sample.json。");
+      } catch (error) {
+        toast("加载失败：请用本地 HTTP 服务打开，或手动导入 JSON。");
+      }
+    });
+    document.getElementById("importBtn").addEventListener("click", () => {
+      document.getElementById("importInput").click();
+    });
+    document.getElementById("importInput").addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = normalizeImportedState(JSON.parse(reader.result));
+          if (!imported) throw new Error("invalid board state");
+          state = imported;
+          saveState(false);
+          render();
+          toast(`已导入：${file.name}`);
+        } catch (error) {
+          toast("导入失败：JSON 格式不符合 board state。");
+        } finally {
+          event.target.value = "";
+        }
+      };
+      reader.readAsText(file);
+    });
+    document.getElementById("resetBtn").addEventListener("click", async () => {
+      localStorage.removeItem(STORAGE_KEY);
+      if (serverBacked) {
+        try {
+          state = normalizeImportedState(await apiJson("/api/board", { method: "DELETE" })) || defaultState();
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (_) {
+          state = defaultState();
+        }
+      } else {
+        state = defaultState();
+      }
+      render();
+      toast(serverBacked ? "已重置文件状态。" : "已清空本地状态。");
+    });
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "planner-state.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    async function initApp() {
+      state = await loadInitialState();
+      queryText = await loadTextResource("/api/query");
+      memoryText = await loadTextResource("/api/memory");
+      render();
+      if (serverBacked) toast("已连接本地后端，状态写入 workspace/app-state/board.json。");
+    }
+
+    initApp();
+  </script>
+</body>
+</html>

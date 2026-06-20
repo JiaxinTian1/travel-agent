@@ -34,11 +34,15 @@ Environment:
   NPM                    npm executable to use. Default: npm.
   FLYAI_BIN              flyai executable used by toolkit/fz/flyai-env.
   MCPORTER               mcporter executable used by toolkit/xhs scripts.
+  NPX                    npx executable used by Airbnb/Booking MCP wrappers.
 
 Notes:
   - FlyAI CLI comes from npm package @fly-ai/flyai-cli.
   - mcporter CLI comes from npm package mcporter.
   - Airbnb MCP uses npx package @openbnb/mcp-server-airbnb on demand.
+  - Booking MCP uses npx package @striderlabs/mcp-booking on demand.
+  - Booking MCP requires Playwright Chromium. The installer can run:
+      npx playwright install chromium
   - Xiaohongshu login is not performed by this installer.
   - toolkit/fz/.env is optional. Add FLYAI_API_KEY there if you have one.
   - --install-system may prompt for sudo and installs nodejs/npm when missing.
@@ -51,6 +55,12 @@ warn() { printf '\033[33mWARN\033[0m %s\n' "$*"; }
 fail() { printf '\033[31mFAIL\033[0m %s\n' "$*"; }
 
 has_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+playwright_chromium_installed() {
+  local browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+  compgen -G "${browsers_path}/chromium-*/chrome-linux/chrome" >/dev/null ||
+    compgen -G "${browsers_path}/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell" >/dev/null
+}
 
 ask() {
   local prompt="$1"
@@ -126,6 +136,7 @@ check_system() {
 
   if has_cmd node && node --version >/dev/null 2>&1; then ok "node found: $(command -v node)"; else warn "node not found or not usable from WSL"; fi
   if has_cmd "${NPM:-npm}" && "${NPM:-npm}" --version >/dev/null 2>&1; then ok "npm found: $(command -v "${NPM:-npm}")"; else warn "npm not found or not usable from WSL"; fi
+  if has_cmd "${NPX:-npx}" && "${NPX:-npx}" --version >/dev/null 2>&1; then ok "npx found: $(command -v "${NPX:-npx}")"; else warn "npx not found or not usable from WSL"; fi
 
   if ((${#missing[@]})); then
     fail "Missing required tools: ${missing[*]}"
@@ -160,6 +171,21 @@ install_npm_clis() {
     ok "mcporter installed"
   else
     warn "mcporter not installed; use direct HTTP MCP calls or web fallback for Xiaohongshu"
+  fi
+
+  local npx_cmd="${NPX:-npx}"
+  if ! has_cmd "$npx_cmd"; then
+    warn "npx is not installed; Airbnb/Booking MCP wrappers and Playwright browser install will be unavailable"
+    return 0
+  fi
+
+  if playwright_chromium_installed; then
+    ok "Playwright Chromium browser already installed"
+  elif ask "Install Playwright Chromium for Booking MCP with npx playwright install chromium?"; then
+    "$npx_cmd" playwright install chromium
+    ok "Playwright Chromium installed"
+  else
+    warn "Playwright Chromium not installed; Booking MCP hotel search will fail until you run: npx playwright install chromium"
   fi
 }
 
@@ -198,6 +224,13 @@ ensure_wrappers() {
     "${ROOT}/toolkit/airbnb/airbnb-mcp-list" \
     "${ROOT}/toolkit/airbnb/airbnb-search" \
     "${ROOT}/toolkit/airbnb/airbnb-details" \
+    "${ROOT}/toolkit/booking/booking-mcp-env" \
+    "${ROOT}/toolkit/booking/booking-mcp-list" \
+    "${ROOT}/toolkit/booking/booking-search" \
+    "${ROOT}/toolkit/booking/booking-property" \
+    "${ROOT}/toolkit/booking/booking-availability" \
+    "${ROOT}/toolkit/booking/booking-prices" \
+    "${ROOT}/toolkit/booking/booking-reviews" \
     "${ROOT}/toolkit/login/login-status" \
     "${ROOT}/toolkit/login/login-all"
 
@@ -216,6 +249,10 @@ EOF
   if [[ ! -f "${ROOT}/toolkit/airbnb/.env" ]]; then
     warn "toolkit/airbnb/.env is missing; this is OK unless you need Airbnb MCP overrides"
   fi
+
+  if [[ ! -f "${ROOT}/toolkit/booking/.env" ]]; then
+    warn "toolkit/booking/.env is missing; this is OK unless you need Booking MCP overrides"
+  fi
 }
 
 doctor() {
@@ -230,7 +267,8 @@ doctor() {
   if has_cmd "${NPM:-npm}" && "${NPM:-npm}" --version >/dev/null 2>&1; then ok "npm: $(command -v "${NPM:-npm}")"; else warn "npm missing or unusable from WSL"; fi
   if has_cmd "${FLYAI_BIN:-flyai}" && "${FLYAI_BIN:-flyai}" --help >/dev/null 2>&1; then ok "flyai: $(command -v "${FLYAI_BIN:-flyai}")"; else warn "flyai missing or not runnable"; fi
   if has_cmd "${MCPORTER:-mcporter}" && "${MCPORTER:-mcporter}" --help >/dev/null 2>&1; then ok "mcporter: $(command -v "${MCPORTER:-mcporter}")"; else warn "mcporter missing or not runnable"; fi
-  if has_cmd npx && npx --version >/dev/null 2>&1; then ok "npx: $(command -v npx)"; else warn "npx missing or unusable; Airbnb MCP wrappers will not work"; fi
+  if has_cmd npx && npx --version >/dev/null 2>&1; then ok "npx: $(command -v npx)"; else warn "npx missing or unusable; Airbnb/Booking MCP wrappers will not work"; fi
+  if playwright_chromium_installed; then ok "Playwright Chromium browser installed"; else warn "Playwright Chromium missing; run: npx playwright install chromium"; fi
 
   if [[ -x "${XHS_DIR}/xiaohongshu-mcp-linux-amd64" ]]; then
     ok "Xiaohongshu MCP binary installed"
@@ -254,6 +292,12 @@ doctor() {
     ok "Airbnb wrapper scripts installed"
   else
     warn "Airbnb wrapper scripts missing"
+  fi
+
+  if [[ -x "${ROOT}/toolkit/booking/booking-search" ]]; then
+    ok "Booking wrapper scripts installed"
+  else
+    warn "Booking wrapper scripts missing"
   fi
 
   if [[ -x "${ROOT}/toolkit/login/login-status" ]]; then

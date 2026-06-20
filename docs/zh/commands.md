@@ -7,6 +7,12 @@
 ./install.sh --doctor
 ```
 
+`./install.sh` 也会检查并可安装 Booking.com MCP 酒店搜索需要的 Playwright Chromium：
+
+```bash
+npx playwright install chromium
+```
+
 ## 登录 / 配置状态
 
 检查所有 toolkit 的认证和配置状态：
@@ -15,7 +21,7 @@
 ./toolkit/login/login-status
 ```
 
-运行交互式登录/配置流程。当前通常只有小红书需要扫码；FlyAI 使用 `.env`，Airbnb 不需要账号登录。
+运行交互式登录/配置流程。当前通常只有小红书需要扫码；FlyAI 使用 `.env`，Airbnb 和 Booking.com 匿名搜索不需要账号登录。
 
 ```bash
 ./toolkit/login/login-all
@@ -112,7 +118,7 @@ mcporter call xiaohongshu-xpz.search_feeds --timeout 180000 --args '{"keyword":"
 
 Airbnb 通过本地 wrapper 和 `npx` 调用 `openbnb-org/mcp-server-airbnb`。
 
-当用户偏好民宿、公寓、villa、厨房/洗衣、家庭住宿、长住或本地街区住宿时使用。普通酒店偏好优先使用 FlyAI/飞猪酒店搜索。
+当用户偏好民宿、公寓、villa、厨房/洗衣、家庭住宿、长住或本地街区住宿时使用。海外酒店偏好优先使用 Booking.com；国内/中文生态酒店调研优先使用 FlyAI/飞猪。
 
 ```bash
 ./toolkit/airbnb/airbnb-mcp-list
@@ -129,13 +135,30 @@ DISABLE_GEOCODING=false
 
 仅在需要本地覆盖配置时，把 `toolkit/airbnb/.env.example` 复制为 `toolkit/airbnb/.env`。
 
+## Booking.com MCP
+
+Booking.com 酒店搜索通过本地 wrapper 和 `npx` 调用 `markswendsen-code/mcp-booking`，npm 包名是 `@striderlabs/mcp-booking`。
+
+海外酒店、酒店式公寓、房型可订、取消政策、价格和评论调研优先使用它。wrapper 只暴露只读工具；不要在调研流程中自动订房或取消订单。
+
+```bash
+./toolkit/booking/booking-mcp-list
+./toolkit/booking/booking-search destination="Tbilisi, Georgia" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-property propertyUrl="<booking-search 返回的 propertyId 或 url>"
+./toolkit/booking/booking-availability propertyUrl="<booking-search 返回的 propertyId 或 url>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-prices propertyUrl="<booking-search 返回的 propertyId 或 url>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-reviews propertyUrl="<booking-search 返回的 propertyId 或 url>"
+```
+
+仅在需要本地覆盖配置时，把 `toolkit/booking/.env.example` 复制为 `toolkit/booking/.env`。
+
 ## Travel Skills
 
 项目内 active skill 副本位于：
 
 ```text
-skills/travel-destination-research
-skills/travel-itinerary-plan
+skills/researcher
+skills/planner
 ```
 
 这些 skill 使用的小红书 MCP 注册名是 `xiaohongshu-xpz`。可用时，用 `search_feeds` 获取社区证据。

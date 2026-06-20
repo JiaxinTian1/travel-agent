@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${SCRIPT_DIR}/.env"
+
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+
+NPX_BIN="${NPX:-npx}"
+MCPORTER_BIN="${MCPORTER:-mcporter}"
+
+if ! command -v "$NPX_BIN" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+Missing npx. Install Linux Node.js 18+ and npm, or set NPX in toolkit/booking/.env.
+Ubuntu example:
+  sudo apt-get update
+  sudo apt-get install -y nodejs npm
+EOF
+  exit 127
+fi
+
+if ! command -v "$MCPORTER_BIN" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+Missing mcporter. Install it or set MCPORTER in toolkit/booking/.env.
+Example:
+  npm i -g mcporter
+EOF
+  exit 127
+fi
+
+if [[ $# -eq 0 ]]; then
+  exec "$MCPORTER_BIN" --stdio "$NPX_BIN" --stdio-arg -y --stdio-arg @striderlabs/mcp-booking --name booking
+fi
+
+SUBCOMMAND="$1"
+shift
+
+exec "$MCPORTER_BIN" "$SUBCOMMAND" \
+  --stdio "$NPX_BIN" \
+  --stdio-arg -y \
+  --stdio-arg @striderlabs/mcp-booking \
+  --name booking \
+  "$@"

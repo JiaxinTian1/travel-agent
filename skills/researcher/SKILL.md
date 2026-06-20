@@ -1,5 +1,5 @@
 ---
-name: travel-destination-research
+name: researcher
 description: >
   Use this skill when the user is unsure where to travel, gives broad destination
   scope such as global/Europe/Asia, asks "where should I go", or wants multiple
@@ -25,7 +25,8 @@ Default project root:
 └── toolkit/
     ├── fz/flyai-env # Feizhu/FlyAI wrapper
     ├── xhs/         # Xiaohongshu MCP scripts/login state
-    └── airbnb/      # Airbnb MCP wrappers for homestay/apartment research
+    ├── airbnb/      # Airbnb MCP wrappers for homestay/apartment research
+    └── booking/     # Booking.com MCP wrappers for overseas hotel research
 ```
 
 Before researching:
@@ -44,13 +45,20 @@ Use local tools when live evidence matters:
 ```bash
 ./toolkit/fz/flyai-env fliggy-fast-search --query "上海出发 9月 自然风光 13天"
 ./toolkit/fz/flyai-env search-flight --origin "上海" --destination "第比利斯" --dep-date 2026-09-25 --back-date 2026-10-07 --sort-type 3
+./toolkit/booking/booking-search destination="Tbilisi" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
 ./toolkit/airbnb/airbnb-search location="Tbilisi, Georgia" checkin=2026-09-25 checkout=2026-10-07 adults=2 propertyType=entire_home
 mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"格鲁吉亚 自然风光 攻略"}'
 ```
 
 If Xiaohongshu MCP is unavailable, continue with other sources and mark community evidence as missing.
 
-Use Airbnb when the user prefers homestays, apartments, villas, kitchens/laundry, family stays, long stays, or local-neighborhood lodging. If the user has no lodging preference, use FlyAI/Feizhu hotel data first and Airbnb as optional supporting evidence.
+Use Booking.com first for overseas hotel, aparthotel, room availability, cancellation-policy, price, and review evidence.
+
+Use Airbnb first when the user prefers homestays, apartments, villas, kitchens/laundry, family stays, long stays, or local-neighborhood lodging.
+
+Use FlyAI/Feizhu hotel data first for domestic/Chinese-market hotel research or when Booking/Airbnb evidence is unavailable.
+
+Never call Booking.com transaction/account tools (`booking_book`, `booking_cancel_reservation`, `booking_get_reservations`, `booking_save_property`) during destination research.
 
 ## Workflow
 
@@ -68,7 +76,7 @@ Use Airbnb when the user prefers homestays, apartments, villas, kitchens/laundry
 4. Gather detail evidence for every selected destination:
    - flight feasibility and rough price from FlyAI/Feizhu where possible.
    - For multiple origins, search each origin-destination-origin round trip separately and keep per-origin evidence. Do not collapse flight evidence before the detail table.
-   - hotel or stay-cost estimate from FlyAI/Feizhu where possible.
+   - hotel or stay-cost estimate. For overseas hotels, use Booking.com first where possible.
    - Airbnb homestay/apartment availability and nightly price when the user prefers homestays or the destination is better served by apartment/villa stays.
    - price premium versus three comparable alternative date ranges.
    - season and weather suitability.
@@ -145,7 +153,7 @@ For each destination:
 1. Estimate target total travel cost:
    - round-trip flight price for the requested dates.
    - For multiple origins, compute one flight target cost and one flight premium per origin/return pair.
-   - lodging price for the requested stay length. Use FlyAI/Feizhu hotel prices by default; use Airbnb prices first when the user prefers homestays/apartments/villas.
+   - lodging price for the requested stay length. Use Booking.com prices first for overseas hotels, FlyAI/Feizhu first for domestic/Chinese-market hotels, and Airbnb first when the user prefers homestays/apartments/villas.
 2. Select three comparison date ranges with the same trip length. Prefer dates outside the target holiday peak and roughly near the requested season, for example:
    - one range 3-5 weeks before.
    - one range 3-5 weeks after.
@@ -196,6 +204,8 @@ Column guidance:
 - `飞行时间` / `各出发地飞行时间`: describe shortest/typical flight duration and transfer burden. For multiple origins, list each origin separately.
 
 When Airbnb is used, mention property type, rough nightly price/range, and whether listings are concentrated near useful bases. Do not treat Airbnb availability as guaranteed inventory; mark it as `实查` only for the query moment.
+
+When Booking.com is used, mention hotel/property type, rough total price or nightly range, review score/count if returned, cancellation-policy signals if available, and whether listings are concentrated near useful bases. Treat availability as query-time evidence, not guaranteed inventory.
 
 ## Score Table
 

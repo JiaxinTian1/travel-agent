@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://travel-agent.local/schema/researcher-result.schema.json",
+  "title": "Researcher Result",
+  "type": "object",
+  "required": ["seed", "candidates", "summary"],
+  "additionalProperties": true,
+  "properties": {
+    "seed": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "rank", "score", "detail", "scores"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "rank": { "type": "integer", "minimum": 1 },
+          "score": { "type": "number" },
+          "detail": {
+            "type": "object",
+            "required": ["nature", "culture", "weather", "reviews", "flights", "cost", "premium", "duration"],
+            "additionalProperties": true
+          },
+          "scores": {
+            "type": "object",
+            "required": ["nature", "culture", "weather", "reviews", "flights", "cost", "premium", "duration"],
+            "additionalProperties": false,
+            "properties": {
+              "nature": { "$ref": "#/$defs/score" },
+              "culture": { "$ref": "#/$defs/score" },
+              "weather": { "$ref": "#/$defs/score" },
+              "reviews": { "$ref": "#/$defs/score" },
+              "flights": { "$ref": "#/$defs/score" },
+              "cost": { "$ref": "#/$defs/score" },
+              "premium": { "$ref": "#/$defs/score" },
+              "duration": { "$ref": "#/$defs/score" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "score": { "type": "number", "minimum": 0, "maximum": 10 }
+  }
+}

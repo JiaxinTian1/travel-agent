@@ -23,3 +23,10 @@ if [ -x "$ROOT/toolkit/airbnb/airbnb-mcp-list" ]; then
 else
   printf 'toolkit/airbnb/airbnb-mcp-list missing\n'
 fi
+
+printf '\n== Booking.com ==\n'
+if [ -x "$ROOT/toolkit/booking/booking-mcp-list" ]; then
+  "$ROOT/toolkit/booking/booking-mcp-list" || true
+else
+  printf 'toolkit/booking/booking-mcp-list missing\n'
+fi

@@ -7,6 +7,12 @@
 ./install.sh --doctor
 ```
 
+`./install.sh` also checks and can install Playwright Chromium, which Booking.com MCP needs for hotel search:
+
+```bash
+npx playwright install chromium
+```
+
 ## Login / Config Status
 
 Check all toolkit auth/config surfaces:
@@ -15,7 +21,7 @@ Check all toolkit auth/config surfaces:
 ./toolkit/login/login-status
 ```
 
-Run the interactive login/config flow. At the moment, only Xiaohongshu normally needs QR login; FlyAI uses `.env`, and Airbnb does not require an account login.
+Run the interactive login/config flow. At the moment, only Xiaohongshu normally needs QR login; FlyAI uses `.env`, and Airbnb/Booking.com anonymous search does not require an account login.
 
 ```bash
 ./toolkit/login/login-all
@@ -114,7 +120,7 @@ Login works and search returns results. If a search call hangs, stop and restart
 
 Airbnb search uses `openbnb-org/mcp-server-airbnb` through local wrappers and `npx`.
 
-Use it when the user prefers homestays, apartments, villas, kitchens/laundry, family stays, long stays, or local-neighborhood lodging. For normal hotel preference, use FlyAI/Feizhu hotel search first.
+Use it when the user prefers homestays, apartments, villas, kitchens/laundry, family stays, long stays, or local-neighborhood lodging. For overseas hotel preference, use Booking.com first. For domestic/Chinese-market hotel research, use FlyAI/Feizhu.
 
 ```bash
 ./toolkit/airbnb/airbnb-mcp-list
@@ -131,13 +137,30 @@ DISABLE_GEOCODING=false
 
 Copy `toolkit/airbnb/.env.example` to `toolkit/airbnb/.env` only if you need local overrides.
 
+## Booking.com MCP
+
+Booking.com hotel search uses `markswendsen-code/mcp-booking`, published as `@striderlabs/mcp-booking`, through local wrappers and `npx`.
+
+Use it first for overseas hotel, aparthotel, room availability, cancellation-policy, price, and review research. The wrappers intentionally expose only read-only tools; do not automate booking or cancellation from research flows.
+
+```bash
+./toolkit/booking/booking-mcp-list
+./toolkit/booking/booking-search destination="Tbilisi, Georgia" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-property propertyUrl="<propertyId-or-url-from-booking-search>"
+./toolkit/booking/booking-availability propertyUrl="<propertyId-or-url-from-booking-search>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-prices propertyUrl="<propertyId-or-url-from-booking-search>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-reviews propertyUrl="<propertyId-or-url-from-booking-search>"
+```
+
+Copy `toolkit/booking/.env.example` to `toolkit/booking/.env` only if you need local overrides.
+
 ## Travel Skills
 
 Active project copies live under:
 
 ```text
-skills/travel-destination-research
-skills/travel-itinerary-plan
+skills/researcher
+skills/planner
 ```
 
 The active Xiaohongshu MCP registration for these skills is `xiaohongshu-xpz`. Use `search_feeds` for community evidence when available.

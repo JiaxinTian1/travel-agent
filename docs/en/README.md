@@ -10,8 +10,8 @@
 
 This repository is a Codex travel-planning workspace centered on two active skills:
 
-- `travel-destination-research`: compare and rank candidate destinations when the destination is still open.
-- `travel-itinerary-plan`: build route options and a detailed 2-hour itinerary after the destination is chosen.
+- `researcher`: compare and rank candidate destinations when the destination is still open.
+- `planner`: build route options and a detailed 2-hour itinerary after the destination is chosen.
 
 The toolkit folders provide live data helpers for those skills, but the skills are the main product of this repo.
 
@@ -20,12 +20,13 @@ The toolkit folders provide live data helpers for those skills, but the skills a
 ```text
 .
 ├── skills/
-│   ├── travel-destination-research/
-│   └── travel-itinerary-plan/
+│   ├── researcher/
+│   └── planner/
 ├── toolkit/
 │   ├── fz/        # Feizhu/FlyAI CLI wrapper
 │   ├── xhs/       # Xiaohongshu MCP scripts and login state
 │   ├── airbnb/    # Airbnb MCP wrappers for homestay/apartment research
+│   ├── booking/   # Booking.com MCP wrappers for hotel research
 │   └── login/     # combined toolkit login/config helpers
 ├── workspace/
 │   ├── memory.md  # long-term travel preferences and visited-place memory
@@ -51,6 +52,7 @@ The installer handles project wrappers, downloads the Xiaohongshu MCP binary, an
 
 - `@fly-ai/flyai-cli` for FlyAI/Fliggy flight, hotel, and POI data.
 - `mcporter` for calling MCP tools from shell.
+- Playwright Chromium for Booking.com hotel search.
 
 It does not log in to Xiaohongshu. By default it does not install system packages such as Node.js/npm or Chromium libraries. To install missing Linux Node.js/npm through apt, run:
 
@@ -60,13 +62,13 @@ It does not log in to Xiaohongshu. By default it does not install system package
 
 ## Skills
 
-Use `travel-destination-research` for questions like:
+Use `researcher` for questions like:
 
 ```text
 9月底从上海出发，想要自然风光、小众一点，去哪几个地方值得比？
 ```
 
-Use `travel-itinerary-plan` after the destination is fixed:
+Use `planner` after the destination is fixed:
 
 ```text
 就选格鲁吉亚，帮我做 9/25-10/7 的路线和 2 小时日程表。
@@ -104,7 +106,7 @@ Run the interactive login/config flow:
 ./toolkit/login/login-all
 ```
 
-Only Xiaohongshu normally needs QR login. FlyAI uses `toolkit/fz/.env`; Airbnb currently does not need account login.
+Only Xiaohongshu normally needs QR login. FlyAI uses `toolkit/fz/.env`; Airbnb and Booking.com anonymous search currently do not need account login.
 
 ## Xiaohongshu MCP
 
@@ -156,6 +158,22 @@ Commands:
 ```
 
 By default, the wrapper passes `--ignore-robots-txt` so live Airbnb search calls return data. See `toolkit/airbnb/.env.example` for optional settings.
+
+## Booking.com MCP
+
+Booking.com support uses the open-source `markswendsen-code/mcp-booking` package, published as `@striderlabs/mcp-booking`, through local wrappers. It is useful for overseas hotel, aparthotel, room availability, cancellation-policy, price, and review research.
+
+Commands:
+
+```bash
+./toolkit/booking/booking-mcp-list
+./toolkit/booking/booking-search destination="Tbilisi, Georgia" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-property propertyUrl="<propertyId-or-url-from-booking-search>"
+./toolkit/booking/booking-prices propertyUrl="<propertyId-or-url-from-booking-search>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
+./toolkit/booking/booking-reviews propertyUrl="<propertyId-or-url-from-booking-search>"
+```
+
+Default travel research uses Booking.com for overseas hotels and Airbnb for homestays/apartments/villas. Booking, cancellation, reservation, and wishlist tools are intentionally not exposed through wrappers.
 
 ## More Commands
 

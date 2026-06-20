@@ -8,6 +8,7 @@ Travel toolkit login/config flow
 
 - FlyAI/Feizhu: uses toolkit/fz/.env. No browser login here.
 - Airbnb: no account login. Uses npx MCP wrapper.
+- Booking.com: anonymous hotel search works without login. Booking/reservation workflows are not used by this toolkit.
 - Xiaohongshu: account/session login may be required by platform risk control.
 EOF
 
@@ -16,6 +17,9 @@ printf '\n== FlyAI / Feizhu config ==\n'
 
 printf '\n== Airbnb MCP ==\n'
 "$ROOT/toolkit/airbnb/airbnb-mcp-list" || true
+
+printf '\n== Booking.com MCP ==\n'
+"$ROOT/toolkit/booking/booking-mcp-list" || true
 
 printf '\n== Xiaohongshu login ==\n'
 if ss -ltn 2>/dev/null | grep -q ':18060'; then
