@@ -11,7 +11,7 @@ async function searchFlights(params) {
     params.returnDate ? `returnDate=${params.returnDate}` : "",
     params.adults ? `adults=${params.adults}` : ""
   ].filter(Boolean).join(" ");
-  const result = await runCommand(repoPath("toolkit", "fz", "flyai-env"), ["ask", prompt], { timeout: Number(process.env.FZ_TIMEOUT || 120000) });
+  const result = await runCommand(repoPath("toolkit", "fz", "flyai-env"), ["ask", prompt], { timeout: Number(params.timeoutMs || process.env.FZ_TIMEOUT || 120000) });
   return normalizeTextResult("flyai", result);
 }
 

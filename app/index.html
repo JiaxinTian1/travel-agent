@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Travel Planner Board Prototype</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQ4pB9z5+Xy9K9lNabQrgFhVbM0gcLw=" crossorigin="">
   <style>
     :root {
       --bg: #f5f6f8;
@@ -181,6 +180,7 @@
     .planner-grid {
       display: grid;
       grid-template-columns: 220px 210px minmax(560px, 1fr);
+      align-items: start;
       gap: 12px;
       min-height: 610px;
     }
@@ -194,47 +194,103 @@
       font-size: 13px;
       font-weight: 800;
     }
+    .recommend-control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .recommend-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 8px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+    .recommend-input:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .category-head .btn {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+    }
     .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
     .restaurant .dot, .dot.restaurant { background: var(--restaurant); }
     .hotel .dot, .dot.hotel { background: var(--hotel); }
     .attraction .dot, .dot.attraction { background: var(--attraction); }
     .flight .dot, .dot.flight { background: var(--flight); }
 
+    .candidate-pool-panel {
+      align-self: start;
+    }
+    .staging-panel {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      max-height: 620px;
+      align-self: start;
+    }
+    .staging-panel .panel-body {
+      min-height: 0;
+      overflow-y: auto;
+    }
+    .category .box-list {
+      max-height: 190px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    #stagingList {
+      max-height: 190px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
     .box-list { display: grid; gap: 8px; }
     .box {
       position: relative;
       display: grid;
       gap: 3px;
-      min-height: 54px;
-      padding: 8px 9px;
+      height: 58px;
+      min-height: 58px;
+      max-height: 58px;
+      padding: 6px;
       border: 1px solid var(--line);
       border-left-width: 4px;
-      border-radius: 8px;
+      border-radius: 7px;
       background: #fff;
       cursor: pointer;
       user-select: none;
+      overflow: hidden;
     }
     .box.restaurant { border-left-color: var(--restaurant); }
     .box.hotel { border-left-color: var(--hotel); }
     .box.attraction { border-left-color: var(--attraction); }
     .box.flight { border-left-color: var(--flight); }
-    .box:hover { border-color: var(--accent); }
+    .box.restaurant:hover { background: #fff7ed; border-color: #fed7aa; border-left-color: var(--restaurant); }
+    .box.hotel:hover { background: #eff6ff; border-color: #bfdbfe; border-left-color: var(--hotel); }
+    .box.attraction:hover { background: #f0fdf4; border-color: #bbf7d0; border-left-color: var(--attraction); }
+    .box.flight:hover { background: #f5f3ff; border-color: #ddd6fe; border-left-color: var(--flight); }
     .box.draggable { cursor: grab; }
-    .box-title { padding-right: 42px; font-size: 12px; font-weight: 800; }
-    .box-meta { color: var(--muted); font-size: 11px; }
-    .box-x {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      width: 22px;
-      height: 22px;
-      border: 1px solid var(--line);
-      border-radius: 5px;
-      background: #fff;
-      color: var(--muted);
-      cursor: pointer;
+    .box-title {
+      padding-right: 30px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 11px;
+      line-height: 1.25;
+      font-weight: 800;
     }
-    .box-x:hover { color: var(--danger); border-color: var(--danger); }
+    .box-meta {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.25;
+    }
     .empty {
       display: grid;
       place-items: center;
@@ -286,11 +342,127 @@
 
     .map-panel { margin-top: 12px; }
     .legend { display: flex; gap: 10px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .date-range-control {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .date-range-control label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .date-input {
+      width: 72px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 6px 7px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+    .date-input:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+    .route-select {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 9px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }
+    .route-summary-inline {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .segment-controls {
+      display: grid;
+      align-content: start;
+      grid-auto-rows: 118px;
+      gap: 6px;
+      padding: 10px;
+      background: #fafafa;
+    }
+    .segment-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      height: 118px;
+      min-height: 118px;
+      max-height: 118px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .segment-row > div:first-child,
+    .segment-row > div:last-child {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .segment-row .route-select { width: 100%; }
+    .segment-row strong {
+      color: var(--text);
+      font-weight: 800;
+    }
     #map {
       width: 100%;
       aspect-ratio: 3 / 2;
       min-height: 520px;
       max-height: 760px;
+    }
+    .map-layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
+      min-height: 880px;
+    }
+    .segment-sidebar {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-width: 0;
+      height: 880px;
+      min-height: 880px;
+      max-height: 880px;
+      border-right: 1px solid var(--line);
+      background: #fafafa;
+    }
+    .segment-sidebar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .segment-sidebar-head strong { color: var(--text); font-size: 13px; }
+    .segment-sidebar .segment-controls {
+      overflow-y: auto;
+      min-height: 0;
+    }
+    .map-layout #map {
+      aspect-ratio: auto;
+      min-height: 880px;
+      height: 880px;
+      max-height: none;
     }
     .map-marker {
       display: grid;
@@ -304,6 +476,22 @@
       font-size: 12px;
       font-weight: 800;
     }
+    .route-time-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      max-width: 96px;
+      padding: 3px 7px;
+      border: 1px solid rgba(15, 23, 42, .12);
+      border-radius: 999px;
+      background: #fff;
+      color: #17202a;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .22);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
     .route-diagram {
       width: 100%;
       aspect-ratio: 3 / 2;
@@ -316,6 +504,14 @@
       display: block;
       width: 100%;
       height: 100%;
+    }
+    .live-map {
+      width: 100%;
+      aspect-ratio: 3 / 2;
+      min-height: 520px;
+      max-height: 760px;
+      border-top: 1px solid var(--line);
+      background: #eef2f6;
     }
     .route-label {
       font: 600 12px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -367,20 +563,17 @@
   </div>
 
   <div class="toast" id="toast"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const STORAGE_KEY = "travel-planner-board-v1";
-    const dates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
+    const defaultDates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
     const timeBlocks = ["06:00-08:00", "08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00", "18:00-20:00", "20:00-22:00", "22:00-24:00"];
     const categories = [
       ["restaurants", "餐厅", "restaurant"],
       ["hotels", "住宿", "hotel"],
       ["attractions", "景点", "attraction"],
-      ["flights", "航班", "flight"]
+      ["flights", "机场", "flight"]
     ];
-    const typeLabels = { restaurant: "餐厅", hotel: "住宿", attraction: "景点", flight: "航班" };
-    const routeColors = ["#0f766e", "#dc2626", "#2563eb", "#7c3aed", "#b45309"];
+    const typeLabels = { restaurant: "餐厅", hotel: "住宿", attraction: "景点", flight: "机场" };
     const markerColors = { restaurant: "#b45309", hotel: "#2563eb", attraction: "#15803d", flight: "#7c3aed" };
 
     let state = defaultState();
@@ -388,10 +581,13 @@
     let saveQueue = Promise.resolve();
     let queryText = "";
     let memoryText = "";
+    let mapConfig = { mapboxEnabled: false, amapEnabled: false };
+    let mapboxPromise;
+    let amapPromise;
     let map;
-    let markerLayer;
-    let routeLayer;
     let toastTimer;
+    let researchPending = false;
+    const pendingRecommendations = new Set();
 
     function point(id, name, type, lat, lng, note) {
       return { id, name, type, lat, lng, note, source: "sample", confidence: "medium" };
@@ -635,6 +831,15 @@
       return loadState();
     }
 
+    async function loadMapConfig() {
+      if (!canUseApi()) return { amapEnabled: false };
+      try {
+        return await apiJson("/api/config/maps");
+      } catch (_) {
+        return { amapEnabled: false };
+      }
+    }
+
     function persistToServer(snapshot) {
       if (!serverBacked) return;
       saveQueue = saveQueue
@@ -730,7 +935,7 @@
                 <h2>researcher</h2>
                 <div class="muted">seed: ${escapeHtml(set.seed)}｜只有一个 researcher tab，不能关闭。</div>
               </div>
-              <button class="btn primary" id="rerollBtn">reroll 新地点</button>
+              <button class="btn primary" id="rerollBtn" ${researchPending ? "disabled" : ""}>${researchPending ? "查询中..." : "reroll 新地点"}</button>
             </div>
             <div class="panel-body">
               <section class="editor">
@@ -865,17 +1070,23 @@
         }
       });
       document.getElementById("rerollBtn").addEventListener("click", async () => {
+        if (researchPending) return;
         queryText = document.getElementById("queryEditor").value;
         if (serverBacked) {
+          researchPending = true;
+          renderResearcher();
           try {
             await runAgentAction("/api/research/reroll", { query: queryText });
             memoryText = await loadTextResource("/api/memory");
+            researchPending = false;
             render();
-            toast("runner 已生成一组新候选地点。");
+            toast("runner 已完成 toolkit 查询并生成新候选地点。");
             return;
           } catch (_) {
+            researchPending = false;
             serverBacked = false;
             toast("runner 调用失败，已切回本地 reroll。");
+            renderResearcher();
           }
         }
         state.researcher.setIndex = (state.researcher.setIndex + 1) % state.researcher.sets.length;
@@ -997,8 +1208,9 @@
           point("a6", "Chronicle of Georgia", "attraction", 41.7712, 44.8106, "城市北部纪念碑")
         ],
         flights: [
-          point("f0", "三地出发 -> TBS 机场集合", "flight", 41.6692, 44.9547, "上海/北京/重庆分别抵达"),
-          point("f4", "TBS -> 三地返程待选航班", "flight", 41.6692, 44.9547, "各自返程")
+          point("f0", "Tbilisi International Airport", "flight", 41.6692, 44.9547, "第比利斯主机场｜TBS"),
+          point("f1", "Kutaisi International Airport", "flight", 42.1767, 42.4826, "库塔伊西机场｜KUT"),
+          point("f2", "Batumi International Airport", "flight", 41.6103, 41.5997, "巴统机场｜BUS")
         ]
       };
     }
@@ -1009,7 +1221,7 @@
         restaurants: [point("r1", defaults.restaurant.name, "restaurant", defaults.restaurant.lat, defaults.restaurant.lng, "由 agent 后续补充")],
         hotels: [point("h1", defaults.hotel.name, "hotel", defaults.hotel.lat, defaults.hotel.lng, "由 Booking/Airbnb 后续补充")],
         attractions: [point("a1", defaults.attraction.name || destination.name, "attraction", defaults.attraction.lat, defaults.attraction.lng, destination.summary)],
-        flights: [point("f1", defaults.flight.name, "flight", defaults.flight.lat, defaults.flight.lng, "由 FlyAI 后续补充")]
+        flights: (defaults.airports || [defaults.flight]).map((airport, index) => point(`f${index + 1}`, airport.name, "flight", airport.lat, airport.lng, airport.note || "主要机场"))
       };
     }
 
@@ -1019,23 +1231,37 @@
           flight: { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206 },
           restaurant: { name: "Shkoder old town restaurant area", lat: 42.0686, lng: 19.5126 },
           hotel: { name: "Theth village guesthouse area", lat: 42.3959, lng: 19.7745 },
-          attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 }
+          attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 },
+          airports: [
+            { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206, note: "阿尔巴尼亚主机场｜TIA" },
+            { name: "Kukes International Airport", lat: 42.0337, lng: 20.4159, note: "北部备选机场｜KFZ" }
+          ]
         },
         "azores": {
           flight: { name: "Ponta Delgada Airport", lat: 37.7412, lng: -25.6979 },
           restaurant: { name: "Ponta Delgada restaurant area", lat: 37.7410, lng: -25.6756 },
           hotel: { name: "Ponta Delgada hotel area", lat: 37.7394, lng: -25.6687 },
-          attraction: { name: "Sete Cidades", lat: 37.8620, lng: -25.7948 }
+          attraction: { name: "Sete Cidades", lat: 37.8620, lng: -25.7948 },
+          airports: [
+            { name: "Ponta Delgada Airport", lat: 37.7412, lng: -25.6979, note: "圣米格尔岛主机场｜PDL" },
+            { name: "Lajes Airport", lat: 38.7618, lng: -27.0908, note: "特塞拉岛机场｜TER" },
+            { name: "Horta Airport", lat: 38.5199, lng: -28.7159, note: "法亚尔岛机场｜HOR" }
+          ]
         },
         "laos-north": {
           flight: { name: "Luang Prabang Airport", lat: 19.8973, lng: 102.1608 },
           restaurant: { name: "Luang Prabang old town restaurant area", lat: 19.8856, lng: 102.1348 },
           hotel: { name: "Luang Prabang old town hotel area", lat: 19.8871, lng: 102.1359 },
-          attraction: { name: "Kuang Si Waterfall", lat: 19.7493, lng: 101.9920 }
+          attraction: { name: "Kuang Si Waterfall", lat: 19.7493, lng: 101.9920 },
+          airports: [
+            { name: "Luang Prabang Airport", lat: 19.8973, lng: 102.1608, note: "琅勃拉邦机场｜LPQ" },
+            { name: "Wattay International Airport", lat: 17.9883, lng: 102.5633, note: "万象国际机场｜VTE" },
+            { name: "Oudomxay Airport", lat: 20.6827, lng: 101.9940, note: "北部山区机场｜ODY" }
+          ]
         }
       };
       return defaults[destination.id] || {
-        flight: { name: "多出发地航班待查", lat: 41.6692, lng: 44.9547 },
+        flight: { name: "主要机场待确认", lat: 41.6692, lng: 44.9547, note: "由 agent 后续补充机场清单" },
         restaurant: { name: "当地特色餐厅待查", lat: 41.7151, lng: 44.8271 },
         hotel: { name: "核心住宿区域待选", lat: 41.7151, lng: 44.8271 },
         attraction: { name: destination.name, lat: 41.7151, lng: 44.8271 }
@@ -1073,16 +1299,35 @@
       put(planner, "9/27", "12:00-14:00", "r5", "午餐");
       put(planner, "9/27", "14:00-16:00", "a6", "Chronicle of Georgia");
       put(planner, "9/27", "16:00-18:00", "r2", "早晚餐/咖啡");
-      put(planner, "9/27", "18:00-20:00", "f4", "市区 -> TBS 机场");
-      put(planner, "9/27", "20:00-22:00", "f4", "返程航班");
-      put(planner, "9/27", "22:00-24:00", "f4", "飞行/转机中");
+      put(planner, "9/27", "18:00-20:00", "f0", "市区 -> TBS 机场");
+      put(planner, "9/27", "20:00-22:00", "f0", "返程航班");
+      put(planner, "9/27", "22:00-24:00", "f0", "飞行/转机中");
     }
 
     function prefillGeneric(planner) {
-      put(planner, "9/25", "06:00-08:00", "f1", "多出发地航班待查");
+      put(planner, "9/25", "06:00-08:00", "f1", "多出发地抵达机场待查");
       put(planner, "9/25", "12:00-14:00", "r1", "午餐待查");
       put(planner, "9/25", "14:00-16:00", "a1", "核心景点占位");
       put(planner, "9/25", "22:00-24:00", "h1", "住宿待选");
+    }
+
+    function ensureAirportCandidates(planner) {
+      const current = planner.candidates?.flights || [];
+      const text = current.map(item => `${item.name || ""} ${item.note || ""}`).join(" ");
+      const looksLikeOldFlightPlaceholders = !current.length || /航班|机场集合|返程待选|多出发地|缓冲|FlyAI/.test(text);
+      if (!looksLikeOldFlightPlaceholders) return;
+      const airportList = airportCandidatesForPlanner(planner);
+      if (!airportList.length) return;
+      planner.candidates.flights = airportList;
+      planner.updatedAt = new Date().toISOString();
+    }
+
+    function airportCandidatesForPlanner(planner) {
+      if (planner.destinationId === "georgia-caucasus") return georgiaCandidates().flights;
+      const defaults = destinationDefaults({ id: planner.destinationId, name: planner.destinationName || planner.title || "" });
+      return (defaults.airports || [defaults.flight])
+        .filter(Boolean)
+        .map((airport, index) => point(`f${index + 1}`, airport.name, "flight", airport.lat, airport.lng, airport.note || "主要机场"));
     }
 
     function renderPlanner(planner) {
@@ -1091,13 +1336,14 @@
         render();
         return;
       }
+      ensureAirportCandidates(planner);
       document.getElementById("content").innerHTML = `
         <section class="planner-grid">
-          <aside class="panel">
+          <aside class="panel candidate-pool-panel">
             <div class="panel-head"><h2>候选池</h2></div>
             <div class="panel-body" id="candidatePanel"></div>
           </aside>
-          <aside class="panel">
+          <aside class="panel staging-panel">
             <div class="panel-head"><h2>预选区</h2></div>
             <div class="panel-body">
               <div class="box-list" id="stagingList"></div>
@@ -1110,7 +1356,10 @@
                 <h2>${escapeHtml(planner.title)}</h2>
                 <div class="muted">横向滚动查看更多日期｜右键单元格清空</div>
               </div>
-              <button class="btn primary" id="savePlannerBtn">保存 planner</button>
+              <div class="actions">
+                ${dateRangeControlHtml(planner)}
+                <button class="btn primary" id="savePlannerBtn">保存 planner</button>
+              </div>
             </div>
             <div class="top-scroll" id="topScroll"><div class="top-scroll-inner" id="topScrollInner"></div></div>
             <div class="grid-wrap" id="gridWrap"><table class="itinerary" id="itineraryTable"></table></div>
@@ -1124,28 +1373,52 @@
                 <span><span class="dot restaurant"></span>餐厅</span>
                 <span><span class="dot hotel"></span>住宿</span>
                 <span><span class="dot attraction"></span>景点</span>
-                <span><span class="dot flight"></span>航班</span>
+                <span><span class="dot flight"></span>机场</span>
               </div>
-              <button class="btn" id="routePlannerBtn">计算路线</button>
             </div>
           </div>
-          <div class="muted" style="padding: 8px 12px; border-bottom: 1px solid var(--line);">${escapeHtml(planner.route?.summary || "地图按当前表格点位连线；点击计算路线会让 runner 写入 route 摘要。")}</div>
-          <div id="map"></div>
+          <div class="map-layout">
+            <aside class="segment-sidebar">
+              <div class="segment-sidebar-head">
+                <strong>路程 <span class="route-summary-inline">${routeSummaryHtml(planner)}</span></strong>
+                <span>每段可单独选交通方式</span>
+              </div>
+              <div class="segment-controls" id="segmentControls">${segmentControlsHtml(planner)}</div>
+            </aside>
+            <div id="map"></div>
+          </div>
         </section>
       `;
       renderCandidatePool(planner);
       renderStaging(planner);
       renderItinerary(planner);
       document.getElementById("savePlannerBtn").addEventListener("click", () => savePlanner(planner));
-      document.getElementById("routePlannerBtn").addEventListener("click", () => calculateRoute(planner));
+      document.getElementById("applyDateRangeBtn").addEventListener("click", () => applyDateRange(planner));
+      document.querySelectorAll("[data-date-range-input]").forEach(input => {
+        input.addEventListener("keydown", event => {
+          if (event.key === "Enter") applyDateRange(planner);
+        });
+      });
+      document.querySelectorAll("[data-segment-mode]").forEach(select => {
+        select.addEventListener("change", async () => {
+          planner.routeSegmentModes = planner.routeSegmentModes || {};
+          planner.routeSegmentModes[select.dataset.segmentMode] = select.value;
+          planner.updatedAt = new Date().toISOString();
+          saveState(false);
+          await calculateRoute(planner);
+        });
+      });
       initTableScrollSync();
       initMap(planner);
     }
 
     async function calculateRoute(planner) {
+      const mode = planner.routeMode || planner.route?.mode || "driving";
+      planner.routeMode = mode;
+      const segmentModes = readSegmentModes(planner);
       if (serverBacked) {
         try {
-          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/route`);
+          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/route`, { mode, segmentModes });
           render();
           toast(result.route.summary);
           return;
@@ -1158,13 +1431,105 @@
       }
     }
 
+    function routeSummaryHtml(planner) {
+      const route = planner.route;
+      if (!route) return `未计算`;
+      const distance = formatDistance(route.distanceMeters);
+      const duration = formatDuration(route.durationSeconds);
+      const mode = routeModeLabel(route.mode || planner.routeMode || "driving");
+      const main = [mode, distance, duration].filter(Boolean).join(" · ");
+      return escapeHtml(main || route.summary || "路线已计算");
+    }
+
+    function segmentControlsHtml(planner) {
+      const points = scheduledPoints(planner);
+      if (points.length < 2) return `<div class="muted">排入至少两个地点后，可以为每一段选择交通方式。</div>`;
+      return points.slice(0, -1).map((entry, index) => {
+        const next = points[index + 1];
+        const key = segmentKey(entry.slot, next.slot);
+        const mode = planner.routeSegmentModes?.[key] || planner.route?.segments?.find(segment => segment.key === key)?.mode || planner.routeMode || "driving";
+        const routeSegment = planner.route?.segments?.find(segment => segment.key === key);
+        return `
+          <div class="segment-row">
+            <div><strong>${index + 1} -> ${index + 2}</strong> ${escapeHtml(entry.item.name)} -> ${escapeHtml(next.item.name)}</div>
+            <select class="route-select" data-segment-mode="${escapeHtml(key)}">
+              ${routeModeOptions(mode)}
+            </select>
+            <div>${escapeHtml(routeSegment?.summary || "待计算")}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function routeModeOptions(current) {
+      return [
+        ["driving", "驾车"],
+        ["walking", "步行"],
+        ["cycling", "骑行"],
+        ["transit", "公共交通"],
+        ["flight", "飞机"]
+      ].map(([value, label]) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`).join("");
+    }
+
+    function readSegmentModes(planner) {
+      const modes = { ...(planner.routeSegmentModes || {}) };
+      document.querySelectorAll("[data-segment-mode]").forEach(select => {
+        modes[select.dataset.segmentMode] = select.value;
+      });
+      planner.routeSegmentModes = modes;
+      return modes;
+    }
+
+    function formatDistance(value) {
+      const meters = Number(value);
+      if (!Number.isFinite(meters) || meters <= 0) return "";
+      return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+    }
+
+    function formatDuration(value) {
+      const seconds = Number(value);
+      if (!Number.isFinite(seconds) || seconds <= 0) return "";
+      const minutes = Math.round(seconds / 60);
+      if (minutes < 60) return `${minutes} min`;
+      const hours = Math.floor(minutes / 60);
+      const rest = minutes % 60;
+      return rest ? `${hours} h ${rest} min` : `${hours} h`;
+    }
+
+    function routeModeLabel(mode) {
+      return {
+        driving: "驾车",
+        "driving-traffic": "驾车",
+        walking: "步行",
+        cycling: "骑行",
+        bicycling: "骑行",
+        transit: "公共交通",
+        flight: "飞机"
+      }[mode] || mode;
+    }
+
     function renderCandidatePool(planner) {
       const panel = document.getElementById("candidatePanel");
       panel.innerHTML = "";
       categories.forEach(([key, label, type]) => {
+        planner.recommendPrompts = planner.recommendPrompts || {};
+        const requestKey = `${planner.id}:${key}`;
+        const pending = pendingRecommendations.has(requestKey);
+        const canRecommend = key !== "flights";
         const wrap = document.createElement("section");
         wrap.className = `category ${type}`;
-        wrap.innerHTML = `<div class="category-head"><span><span class="dot ${type}"></span>${label}</span><button class="btn" data-add="${key}">推荐一个</button></div><div class="box-list"></div>`;
+        wrap.innerHTML = `
+          <div class="category-head">
+            <span><span class="dot ${type}"></span>${label}</span>
+            ${canRecommend ? `<button class="btn" data-add="${key}" ${pending ? "disabled" : ""}>${pending ? "查询中..." : "推荐"}</button>` : ""}
+          </div>
+          ${canRecommend ? `
+            <div class="recommend-control">
+              <input class="recommend-input" data-recommend-prompt="${key}" value="${escapeHtml(planner.recommendPrompts[key] || "")}" placeholder="本次推荐需求">
+            </div>
+          ` : ""}
+          <div class="box-list"></div>
+        `;
         const list = wrap.querySelector(".box-list");
         planner.candidates[key].forEach(candidate => {
           list.appendChild(box(candidate, () => {
@@ -1172,26 +1537,43 @@
             planner.updatedAt = new Date().toISOString();
             renderPlanner(planner);
             toast(`已加入预选区：${candidate.name}`);
-          }));
+          }, false, planner, () => removeCandidate(planner, key, candidate)));
         });
-        wrap.querySelector("[data-add]").addEventListener("click", () => addStaticCandidate(planner, key, type));
+        const promptInput = wrap.querySelector("[data-recommend-prompt]");
+        if (promptInput) {
+          promptInput.addEventListener("input", () => {
+            planner.recommendPrompts[key] = promptInput.value;
+          });
+        }
+        const addButton = wrap.querySelector("[data-add]");
+        if (addButton) addButton.addEventListener("click", () => addStaticCandidate(planner, key, type, (promptInput?.value || "").trim()));
         panel.appendChild(wrap);
       });
     }
 
-    async function addStaticCandidate(planner, key, type) {
+    async function addStaticCandidate(planner, key, type, prompt = "") {
+      const requestKey = `${planner.id}:${key}`;
+      if (pendingRecommendations.has(requestKey)) return;
+      planner.recommendPrompts = planner.recommendPrompts || {};
+      planner.recommendPrompts[key] = prompt;
       if (serverBacked) {
+        pendingRecommendations.add(requestKey);
+        renderPlanner(planner);
         try {
-          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/recommend`, { category: key });
+          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/recommend`, { category: key, prompt });
+          pendingRecommendations.delete(requestKey);
           render();
           toast(`runner 已推荐：${result.item.name}`);
           return;
         } catch (_) {
+          pendingRecommendations.delete(requestKey);
           serverBacked = false;
           toast("runner 推荐失败，已切回本地占位。");
+          const latestPlanner = state.planners.find(item => item.id === planner.id) || planner;
+          renderPlanner(latestPlanner);
         }
       }
-      const next = point(`${type}_${Date.now()}`, `新${typeLabels[type]}候选`, type, 41.7151 + Math.random() * .05, 44.8271 + Math.random() * .05, "静态推荐占位｜后续接 agent");
+      const next = point(`${type}_${Date.now()}`, `新${typeLabels[type]}候选`, type, 41.7151 + Math.random() * .05, 44.8271 + Math.random() * .05, prompt || "静态推荐占位");
       planner.candidates[key].push(next);
       planner.updatedAt = new Date().toISOString();
       renderPlanner(planner);
@@ -1205,35 +1587,130 @@
       const list = document.getElementById("stagingList");
       const empty = document.getElementById("stagingEmpty");
       list.innerHTML = "";
-      planner.staging.forEach(item => list.appendChild(box(item, null, true, planner)));
+      planner.staging.forEach(item => list.appendChild(box(item, null, true, planner, () => removeStagingItem(planner, item))));
       empty.style.display = planner.staging.length ? "none" : "grid";
     }
 
-    function box(item, onClick, draggable = false, planner = null) {
+    function box(item, onClick, draggable = false, planner = null, onDelete = null) {
       const el = document.createElement("div");
       el.className = `box ${item.type} ${draggable ? "draggable" : ""}`;
-      el.innerHTML = `<div class="box-title">${escapeHtml(item.name)}</div><div class="box-meta">${typeLabels[item.type]}｜${escapeHtml(item.note || "")}</div>`;
+      el.innerHTML = `<div class="box-title">${escapeHtml(item.name)}</div><div class="box-meta">${typeLabels[item.type]}｜${escapeHtml(displayNote(item.note || ""))}</div>`;
       if (onClick) el.addEventListener("click", onClick);
       if (draggable) {
         el.draggable = true;
         el.addEventListener("dragstart", event => event.dataTransfer.setData("text/plain", item.instanceId));
-        const x = document.createElement("button");
-        x.type = "button";
-        x.className = "box-x";
-        x.textContent = "x";
-        x.addEventListener("click", event => {
+      }
+      if (onDelete) {
+        el.addEventListener("contextmenu", event => {
+          event.preventDefault();
           event.stopPropagation();
-          planner.staging = planner.staging.filter(i => i.instanceId !== item.instanceId);
-          planner.updatedAt = new Date().toISOString();
-          renderPlanner(planner);
+          onDelete();
         });
-        el.appendChild(x);
       }
       return el;
     }
 
+    function removeCandidate(planner, key, candidate) {
+      planner.candidates[key] = (planner.candidates[key] || []).filter(item => item.id !== candidate.id);
+      planner.staging = (planner.staging || []).filter(item => item.itemId !== candidate.id && item.id !== candidate.id);
+      Object.entries(planner.itinerary || {}).forEach(([slot, item]) => {
+        if (item?.itemId === candidate.id || item?.id === candidate.id) delete planner.itinerary[slot];
+      });
+      planner.updatedAt = new Date().toISOString();
+      renderPlanner(planner);
+      toast(`已删除：${candidate.name}`);
+    }
+
+    function removeStagingItem(planner, item) {
+      planner.staging = (planner.staging || []).filter(row => row.instanceId !== item.instanceId);
+      planner.updatedAt = new Date().toISOString();
+      renderPlanner(planner);
+      toast(`已从预选区删除：${item.name}`);
+    }
+
+    function displayNote(note) {
+      return String(note || "")
+        .replace(/｜?\s*runner fallback 推荐/gi, "")
+        .replace(/｜?\s*runner 推荐/gi, "")
+        .replace(/｜?\s*LLM agent 推荐/gi, "")
+        .replace(/｜?\s*agent 推荐/gi, "")
+        .replace(/｜\s*(mapbox-search|mapbox-forward-search|amap-search|amap|mapbox)$/i, "")
+        .trim();
+    }
+
+    function plannerDates(planner) {
+      return Array.isArray(planner?.dates) && planner.dates.length
+        ? planner.dates.map(date => String(date)).filter(Boolean)
+        : defaultDates;
+    }
+
+    function dateRangeControlHtml(planner) {
+      const list = plannerDates(planner);
+      return `
+        <div class="date-range-control">
+          <label>起始 <input class="date-input" data-date-range-input id="dateStartInput" value="${escapeHtml(list[0] || defaultDates[0])}"></label>
+          <label>结束 <input class="date-input" data-date-range-input id="dateEndInput" value="${escapeHtml(list[list.length - 1] || defaultDates[defaultDates.length - 1])}"></label>
+          <button class="btn" id="applyDateRangeBtn">应用</button>
+        </div>
+      `;
+    }
+
+    function applyDateRange(planner) {
+      const start = document.getElementById("dateStartInput")?.value || "";
+      const end = document.getElementById("dateEndInput")?.value || "";
+      const nextDates = buildDateRange(start, end);
+      if (!nextDates.length) {
+        toast("日期格式用 9/25 这种格式，结束日期不能早于起始日期。");
+        return;
+      }
+      const oldDates = plannerDates(planner);
+      planner.itinerary = migrateItineraryDates(planner.itinerary || {}, oldDates, nextDates);
+      planner.dates = nextDates;
+      planner.updatedAt = new Date().toISOString();
+      renderPlanner(planner);
+      toast(`日期已更新：${nextDates[0]} -> ${nextDates[nextDates.length - 1]}`);
+    }
+
+    function buildDateRange(start, end) {
+      const from = parseMonthDay(start);
+      const to = parseMonthDay(end);
+      if (!from || !to) return [];
+      const startDate = new Date(2026, from.month - 1, from.day);
+      const endDate = new Date(2026, to.month - 1, to.day);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) return [];
+      const dates = [];
+      for (let cursor = new Date(startDate); cursor <= endDate && dates.length <= 31; cursor.setDate(cursor.getDate() + 1)) {
+        dates.push(`${cursor.getMonth() + 1}/${cursor.getDate()}`);
+      }
+      return dates;
+    }
+
+    function parseMonthDay(value) {
+      const match = String(value || "").trim().match(/^(\d{1,2})[/-](\d{1,2})$/);
+      if (!match) return null;
+      const month = Number(match[1]);
+      const day = Number(match[2]);
+      if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) return null;
+      return { month, day };
+    }
+
+    function migrateItineraryDates(itinerary, oldDates, newDates) {
+      const next = {};
+      Object.entries(itinerary || {}).forEach(([key, item]) => {
+        const [date, time] = key.split("|");
+        const oldIndex = oldDates.indexOf(date);
+        if (oldIndex >= 0 && oldIndex < newDates.length) {
+          next[`${newDates[oldIndex]}|${time}`] = item;
+        } else if (newDates.includes(date)) {
+          next[key] = item;
+        }
+      });
+      return next;
+    }
+
     function renderItinerary(planner) {
       const table = document.getElementById("itineraryTable");
+      const dates = plannerDates(planner);
       table.innerHTML = "";
       table.innerHTML = `<thead><tr><th class="time-head">时间</th>${dates.map(date => `<th class="date-head">${date}</th>`).join("")}</tr></thead>`;
       const tbody = document.createElement("tbody");
@@ -1316,14 +1793,97 @@
 
     function initMap(planner) {
       destroyMap();
+      const domestic = isChinaPlanner(planner);
+      if (domestic && mapConfig.amapEnabled) {
+        renderAmap(planner).catch(error => {
+          if (mapConfig.mapboxEnabled) {
+            renderMapbox(planner).catch(mapboxError => {
+              renderRouteDiagram(planner);
+              toast(`高德/Mapbox 地图加载失败，已切回路线图：${mapboxError.message || error.message}`);
+            });
+            return;
+          }
+          renderRouteDiagram(planner);
+          toast(`高德地图加载失败，已切回路线图：${error.message}`);
+        });
+        return;
+      }
+      if (!domestic && mapConfig.mapboxEnabled) {
+        renderMapbox(planner).catch(error => {
+          if (mapConfig.amapEnabled) {
+            renderAmap(planner).catch(amapError => {
+              renderRouteDiagram(planner);
+              toast(`Mapbox/高德地图加载失败，已切回路线图：${amapError.message || error.message}`);
+            });
+            return;
+          }
+          renderRouteDiagram(planner);
+          toast(`Mapbox 地图加载失败，已切回路线图：${error.message}`);
+        });
+        return;
+      }
+      if (mapConfig.amapEnabled) {
+        renderAmap(planner).catch(error => {
+          renderRouteDiagram(planner);
+          toast(`高德地图加载失败，已切回路线图：${error.message}`);
+        });
+        return;
+      }
       renderRouteDiagram(planner);
     }
 
     function destroyMap() {
       if (map) {
-        map.remove();
+        if (typeof map.remove === "function") map.remove();
+        if (typeof map.destroy === "function") map.destroy();
         map = null;
       }
+    }
+
+    function loadMapboxSdk() {
+      if (window.mapboxgl) return Promise.resolve(window.mapboxgl);
+      if (mapboxPromise) return mapboxPromise;
+      if (!mapConfig.mapboxAccessToken) return Promise.reject(new Error("未配置 MAPBOX_ACCESS_TOKEN"));
+      mapboxPromise = new Promise((resolve, reject) => {
+        const cssId = "mapbox-gl-css";
+        if (!document.getElementById(cssId)) {
+          const link = document.createElement("link");
+          link.id = cssId;
+          link.rel = "stylesheet";
+          link.href = "https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.css";
+          document.head.appendChild(link);
+        }
+        const script = document.createElement("script");
+        script.src = "https://api.mapbox.com/mapbox-gl-js/v3.15.0/mapbox-gl.js";
+        script.async = true;
+        script.onload = () => window.mapboxgl ? resolve(window.mapboxgl) : reject(new Error("Mapbox GL JS 未初始化"));
+        script.onerror = () => reject(new Error("Mapbox GL JS 下载失败"));
+        document.head.appendChild(script);
+      });
+      return mapboxPromise;
+    }
+
+    function loadAmapSdk() {
+      if (window.AMap) return Promise.resolve(window.AMap);
+      if (amapPromise) return amapPromise;
+      if (!mapConfig.amapJsApiKey) return Promise.reject(new Error("未配置 AMAP_JS_API_KEY"));
+      if (mapConfig.amapSecurityJsCode) {
+        window._AMapSecurityConfig = { securityJsCode: mapConfig.amapSecurityJsCode };
+      }
+      amapPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        const params = new URLSearchParams({
+          v: "2.0",
+          key: mapConfig.amapJsApiKey,
+          plugin: "AMap.Scale,AMap.ToolBar"
+        });
+        script.src = `https://webapi.amap.com/maps?${params.toString()}`;
+        script.async = true;
+        script.onload = () => window.AMap ? resolve(window.AMap) : reject(new Error("AMap 未初始化"));
+        script.onerror = () => reject(new Error("高德 JS API 下载失败"));
+        document.head.appendChild(script);
+      });
+      return amapPromise;
     }
 
     function routeCoordinates(planner) {
@@ -1331,6 +1891,54 @@
         return planner.route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       }
       return scheduledPoints(planner).map(({ item }) => ({ lat: item.lat, lng: item.lng }));
+    }
+
+    function displayPoints(planner) {
+      const scheduled = scheduledPoints(planner).map((entry, index) => ({ ...entry, index, scheduled: true }));
+      const staged = (planner.staging || [])
+        .filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+        .map((item, index) => ({ slot: "预选区", item, index: scheduled.length + index, scheduled: false }));
+      return [...scheduled, ...staged];
+    }
+
+    function routeSegments(planner) {
+      const scheduled = scheduledPoints(planner);
+      if (Array.isArray(planner.route?.segments) && planner.route.segments.length) {
+        return planner.route.segments.map((segment, index) => ({
+          ...segment,
+          label: formatDuration(segment.durationSeconds) || segment.summary || `${index + 1}`,
+          position: segmentPosition(segment, scheduled)
+        })).filter(segment => segment.position);
+      }
+      return scheduled.slice(0, -1).map((entry, index) => {
+        const next = scheduled[index + 1];
+        return {
+          fromIndex: index,
+          toIndex: index + 1,
+          label: `${index + 1} -> ${index + 2}`,
+          position: midpoint(entry.item, next.item)
+        };
+      });
+    }
+
+    function segmentPosition(segment, scheduled) {
+      const coordinates = segment.geometry?.coordinates;
+      if (Array.isArray(coordinates) && coordinates.length) {
+        const [lng, lat] = coordinates[Math.floor(coordinates.length / 2)];
+        if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+      }
+      const from = scheduled[segment.fromIndex]?.item;
+      const to = scheduled[segment.toIndex]?.item;
+      if (from && to) return midpoint(from, to);
+      return null;
+    }
+
+    function midpoint(a, b) {
+      return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
+    }
+
+    function segmentKey(fromSlot, toSlot) {
+      return `${fromSlot}->${toSlot}`;
     }
 
     function scheduledPoints(planner) {
@@ -1342,16 +1950,250 @@
 
     function slotOrder(slot) {
       const [date, time] = String(slot).split("|");
-      const dateIndex = dates.indexOf(date);
+      const defaultIndex = defaultDates.indexOf(date);
+      const parsed = parseMonthDay(date);
+      const dateIndex = defaultIndex >= 0 ? defaultIndex : parsed ? parsed.month * 100 + parsed.day : 999;
       const timeIndex = timeBlocks.indexOf(time);
       return (dateIndex < 0 ? 999 : dateIndex) * 100 + (timeIndex < 0 ? 99 : timeIndex);
+    }
+
+    function isChinaPlanner(planner) {
+      const scheduled = scheduledPoints(planner);
+      if (scheduled.length) return scheduled.every(({ item }) => isChinaPoint(item));
+      const name = `${planner.destinationName || ""} ${planner.title || ""}`.toLowerCase();
+      return /中国|北京|上海|重庆|天津|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|广西|西藏|宁夏|新疆|香港|澳门|九寨沟|张家界|黄山|桂林|大理|丽江|成都|杭州|苏州|西安|厦门|青岛|哈尔滨|三亚/.test(name)
+        || /\b(china|beijing|shanghai|chongqing|chengdu|hangzhou|xian|xi'an|yunnan|sichuan|guangxi|tibet|xinjiang|guilin|zhangjiajie|huangshan|sanya|xiamen|qingdao|harbin|hong kong|macau)\b/.test(name);
+    }
+
+    function isChinaPoint(point) {
+      return point.lat >= 18 && point.lat <= 54 && point.lng >= 73 && point.lng <= 135;
+    }
+
+    async function renderMapbox(planner) {
+      const mapboxgl = await loadMapboxSdk();
+      const el = document.getElementById("map");
+      const scheduled = scheduledPoints(planner);
+      const display = displayPoints(planner);
+      const route = routeCoordinates(planner);
+      const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      el.className = "live-map";
+      el.innerHTML = "";
+      if (!all.length) {
+        el.className = "route-diagram";
+        el.innerHTML = `<svg viewBox="0 0 900 600" role="img" aria-label="route diagram"><text x="450" y="300" text-anchor="middle" class="route-label">还没有可绘制的地点</text></svg>`;
+        return;
+      }
+
+      mapboxgl.accessToken = mapConfig.mapboxAccessToken;
+      const center = all[Math.floor(all.length / 2)];
+      map = new mapboxgl.Map({
+        container: "map",
+        style: mapConfig.mapboxStyle || "mapbox://styles/mapbox/streets-v12",
+        center: [center.lng, center.lat],
+        zoom: 8
+      });
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-right");
+      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 140, unit: "metric" }), "bottom-left");
+
+      const bounds = new mapboxgl.LngLatBounds();
+      all.forEach(point => bounds.extend([point.lng, point.lat]));
+      const markerGroups = [];
+      display.forEach((entry, index) => {
+        const key = `${entry.item.lat.toFixed(5)},${entry.item.lng.toFixed(5)}`;
+        let group = markerGroups.find(item => item.key === key);
+        if (!group) {
+          group = { key, entries: [] };
+          markerGroups.push(group);
+        }
+        group.entries.push({ ...entry, index });
+      });
+
+      markerGroups.forEach(group => {
+        const first = group.entries[0];
+        const item = first.item;
+        const color = markerColors[item.type] || "#111827";
+        const numberLabel = group.entries.length === 1
+          ? (first.scheduled ? String(first.index + 1) : "+")
+          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const markerEl = document.createElement("div");
+        markerEl.className = "map-marker";
+        markerEl.style.background = color;
+        markerEl.textContent = numberLabel;
+        const popup = new mapboxgl.Popup({ offset: 20 }).setHTML(group.entries
+          .map(({ slot, item: row, index }) => `<strong>${index + 1}. ${escapeHtml(row.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[row.type]}｜${escapeHtml(row.note || "")}`)
+          .join("<hr>"));
+        new mapboxgl.Marker({ element: markerEl, anchor: "center" })
+          .setLngLat([item.lng, item.lat])
+          .setPopup(popup)
+          .addTo(map);
+      });
+
+      routeSegments(planner).forEach(segment => {
+        const markerEl = document.createElement("div");
+        markerEl.className = "route-time-marker";
+        markerEl.textContent = segment.label;
+        new mapboxgl.Marker({ element: markerEl, anchor: "center" })
+          .setLngLat([segment.position.lng, segment.position.lat])
+          .addTo(map);
+      });
+
+      map.on("load", () => {
+        if (route.length > 1) {
+          map.addSource("route", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: route.map(point => [point.lng, point.lat])
+              }
+            }
+          });
+          map.addLayer({
+            id: "route-line",
+            type: "line",
+            source: "route",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color": planner.route?.source === "mapbox" ? "#0f766e" : "#111827",
+              "line-width": 5,
+              "line-opacity": 0.86
+            }
+          });
+        }
+        if (scheduled.length > 1) {
+          map.addSource("direct-line", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: scheduled.map(({ item }) => [item.lng, item.lat])
+              }
+            }
+          });
+          map.addLayer({
+            id: "direct-line",
+            type: "line",
+            source: "direct-line",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: {
+              "line-color": "#64748b",
+              "line-width": 3,
+              "line-opacity": 0.55,
+              "line-dasharray": [2, 2]
+            }
+          });
+        }
+        if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 56, maxZoom: 13, duration: 0 });
+      });
+    }
+
+    async function renderAmap(planner) {
+      const AMap = await loadAmapSdk();
+      const el = document.getElementById("map");
+      const scheduled = scheduledPoints(planner);
+      const display = displayPoints(planner);
+      const route = routeCoordinates(planner);
+      const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      el.className = "live-map";
+      el.innerHTML = "";
+      if (!all.length) {
+        el.className = "route-diagram";
+        el.innerHTML = `<svg viewBox="0 0 900 600" role="img" aria-label="route diagram"><text x="450" y="300" text-anchor="middle" class="route-label">还没有可绘制的地点</text></svg>`;
+        return;
+      }
+
+      const center = all[Math.floor(all.length / 2)];
+      map = new AMap.Map("map", {
+        resizeEnable: true,
+        viewMode: "2D",
+        zoom: 9,
+        center: [center.lng, center.lat]
+      });
+      map.addControl(new AMap.Scale());
+      map.addControl(new AMap.ToolBar({ position: { top: "16px", right: "16px" } }));
+
+      const overlays = [];
+      const markerGroups = [];
+      display.forEach((entry, index) => {
+        const key = `${entry.item.lat.toFixed(5)},${entry.item.lng.toFixed(5)}`;
+        let group = markerGroups.find(item => item.key === key);
+        if (!group) {
+          group = { key, entries: [] };
+          markerGroups.push(group);
+        }
+        group.entries.push({ ...entry, index });
+      });
+
+      const infoWindow = new AMap.InfoWindow({ offset: new AMap.Pixel(0, -30) });
+      markerGroups.forEach(group => {
+        const first = group.entries[0];
+        const item = first.item;
+        const color = markerColors[item.type] || "#111827";
+        const numberLabel = group.entries.length === 1
+          ? (first.scheduled ? String(first.index + 1) : "+")
+          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const marker = new AMap.Marker({
+          position: [item.lng, item.lat],
+          anchor: "center",
+          content: `<div class="map-marker" style="background:${color}">${numberLabel}</div>`
+        });
+        const content = group.entries
+          .map(({ slot, item: row, index }) => `<strong>${index + 1}. ${escapeHtml(row.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[row.type]}｜${escapeHtml(row.note || "")}`)
+          .join("<hr>");
+        marker.on("mouseover", () => infoWindow.setContent(content) || infoWindow.open(map, marker.getPosition()));
+        marker.on("click", () => infoWindow.setContent(content) || infoWindow.open(map, marker.getPosition()));
+        marker.setMap(map);
+        overlays.push(marker);
+      });
+
+      routeSegments(planner).forEach(segment => {
+        const marker = new AMap.Marker({
+          position: [segment.position.lng, segment.position.lat],
+          anchor: "center",
+          content: `<div class="route-time-marker">${escapeHtml(segment.label)}</div>`
+        });
+        marker.setMap(map);
+        overlays.push(marker);
+      });
+
+      if (route.length > 1) {
+        const routeLine = new AMap.Polyline({
+          path: route.map(point => [point.lng, point.lat]),
+          strokeColor: planner.route?.source === "amap" ? "#0f766e" : "#111827",
+          strokeWeight: 6,
+          strokeOpacity: 0.85,
+          lineJoin: "round",
+          lineCap: "round"
+        });
+        routeLine.setMap(map);
+        overlays.push(routeLine);
+      }
+      if (scheduled.length > 1) {
+        const directLine = new AMap.Polyline({
+          path: scheduled.map(({ item }) => [item.lng, item.lat]),
+          strokeColor: "#64748b",
+          strokeWeight: 3,
+          strokeOpacity: 0.65,
+          strokeStyle: "dashed",
+          lineJoin: "round",
+          lineCap: "round"
+        });
+        directLine.setMap(map);
+        overlays.push(directLine);
+      }
+      if (overlays.length) map.setFitView(overlays, false, [48, 48, 48, 48], 13);
     }
 
     function renderRouteDiagram(planner) {
       const el = document.getElementById("map");
       const route = routeCoordinates(planner);
       const scheduled = scheduledPoints(planner);
-      const all = [...route, ...scheduled.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      const display = displayPoints(planner);
+      const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
       el.className = "route-diagram";
       if (!all.length) {
         el.innerHTML = `<svg viewBox="0 0 900 600" role="img" aria-label="route diagram"><text x="450" y="300" text-anchor="middle" class="route-label">还没有可绘制的地点</text></svg>`;
@@ -1374,7 +2216,7 @@
       const routePath = route.map(project).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
       const directPath = scheduled.map(({ item }) => project(item)).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
       const markerGroups = [];
-      scheduled.forEach((entry, index) => {
+      display.forEach((entry, index) => {
         const key = `${entry.item.lat.toFixed(5)},${entry.item.lng.toFixed(5)}`;
         let group = markerGroups.find(item => item.key === key);
         if (!group) {
@@ -1388,7 +2230,7 @@
         const p = project(first.item);
         const color = markerColors[first.item.type] || "#111827";
         const numberLabel = group.entries.length === 1
-          ? String(first.index + 1)
+          ? (first.scheduled ? String(first.index + 1) : "+")
           : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
         const labelText = group.entries.map(({ item }) => item.name).join(" / ");
         const label = escapeHtml(labelText);
@@ -1405,6 +2247,15 @@
           </g>
         `;
       }).join("");
+      const segmentLabels = routeSegments(planner).map(segment => {
+        const p = project(segment.position);
+        return `
+          <g>
+            <rect x="${(p.x - 26).toFixed(1)}" y="${(p.y - 11).toFixed(1)}" width="52" height="22" rx="11" fill="#fff" stroke="#cbd5e1"></rect>
+            <text x="${p.x.toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="middle" fill="#111827" font-size="10" font-weight="800">${escapeHtml(segment.label)}</text>
+          </g>
+        `;
+      }).join("");
 
       el.innerHTML = `
         <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="route diagram">
@@ -1412,46 +2263,11 @@
           <path d="M ${pad} ${height - pad} L ${width - pad} ${height - pad} L ${width - pad} ${pad}" fill="none" stroke="#cbd5e1" stroke-width="1"></path>
           ${directPath ? `<polyline points="${directPath}" fill="none" stroke="#94a3b8" stroke-width="4" stroke-dasharray="8 8" opacity=".75"></polyline>` : ""}
           ${routePath ? `<polyline points="${routePath}" fill="none" stroke="#111827" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>` : ""}
+          ${segmentLabels}
           ${markers}
           <text x="${pad}" y="${height - 24}" class="route-label">${escapeHtml(planner.route?.summary || "按表格地点绘制路线图")}</text>
         </svg>
       `;
-    }
-
-    function updateMap(planner) {
-      if (!map) return;
-      markerLayer.clearLayers();
-      routeLayer.clearLayers();
-      const scheduled = scheduledPoints(planner);
-      const boundsPoints = scheduled.map(({ item }) => [item.lat, item.lng]);
-      scheduled.forEach(({ slot, item }, index) => {
-        const icon = L.divIcon({
-          className: "",
-          html: `<div class="map-marker" style="background:${markerColors[item.type] || "#111827"}">${index + 1}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-          popupAnchor: [0, -16]
-        });
-        L.marker([item.lat, item.lng], { icon })
-          .bindPopup(`<strong>${escapeHtml(item.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[item.type]}｜${escapeHtml(item.note || "")}`)
-          .addTo(markerLayer);
-      });
-      dates.forEach((date, idx) => {
-        const pts = timeBlocks.map(time => planner.itinerary[`${date}|${time}`]).filter(item => item && Number.isFinite(item.lat) && Number.isFinite(item.lng));
-        if (pts.length > 1) {
-          L.polyline(pts.map(item => [item.lat, item.lng]), { color: routeColors[idx % routeColors.length], weight: 4, opacity: .78 }).addTo(routeLayer);
-        }
-      });
-      if (planner.route?.geometry?.type === "LineString" && Array.isArray(planner.route.geometry.coordinates)) {
-        const routeLatLngs = planner.route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
-        routeLatLngs.forEach(point => boundsPoints.push(point));
-        L.polyline(
-          routeLatLngs,
-          { color: "#111827", weight: 5, opacity: .85, dashArray: planner.route.source === "openrouteservice" ? null : "8 7" }
-        ).bindPopup(escapeHtml(planner.route.summary || "route")).addTo(routeLayer);
-      }
-      const bounds = L.latLngBounds(boundsPoints);
-      if (bounds.isValid()) map.fitBounds(bounds.pad(.22), { animate: false, maxZoom: 13 });
     }
 
     function toast(message) {
@@ -1543,6 +2359,7 @@
 
     async function initApp() {
       state = await loadInitialState();
+      mapConfig = await loadMapConfig();
       queryText = await loadTextResource("/api/query");
       memoryText = await loadTextResource("/api/memory");
       render();

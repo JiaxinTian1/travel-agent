@@ -16,7 +16,7 @@ async function searchHomestays(params) {
     maxPrice: "maxPrice",
     propertyType: "propertyType"
   });
-  const result = await runCommand(repoPath("toolkit", "airbnb", "airbnb-search"), args, { timeout: Number(process.env.AIRBNB_TIMEOUT || 120000) });
+  const result = await runCommand(repoPath("toolkit", "airbnb", "airbnb-search"), args, { timeout: Number(params.timeoutMs || process.env.AIRBNB_TIMEOUT || 120000) });
   return normalizeTextResult("airbnb", result);
 }
 

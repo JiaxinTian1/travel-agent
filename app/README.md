@@ -11,7 +11,7 @@ This is the web app for Travel Agent. It gives the trip organizer a visual board
 - Candidate pools for restaurants, hotels, attractions, and flights.
 - Drag-and-drop 2-hour itinerary grid.
 - Route calculation through the local agent runner.
-- Stable SVG route diagram that works even when map tiles fail.
+- Mapbox or AMap/Gaode map background when configured, with a stable SVG route diagram fallback.
 
 ## Start 🚀
 
@@ -35,7 +35,7 @@ Create local app config:
 cp app/.env.example app/.env
 ```
 
-Use it for model providers, OpenRouteService, and toolkit settings. The app still opens without model config, but model-driven recommendations will use fallback behavior.
+Use it for model providers, Mapbox, AMap/Gaode, OpenRouteService, and toolkit settings. The app still opens without map or model config, but route display and recommendations will use fallback behavior.
 
 ## Data 🧠
 

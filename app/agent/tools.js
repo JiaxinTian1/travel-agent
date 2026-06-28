@@ -4,6 +4,8 @@ const booking = require("../toolkit/booking");
 const airbnb = require("../toolkit/airbnb");
 const fz = require("../toolkit/fz");
 const memoryStore = require("./memoryStore");
+const amap = require("../toolkit/amap");
+const mapbox = require("../toolkit/mapbox");
 const ors = require("../toolkit/ors");
 const xhs = require("../toolkit/xhs");
 
@@ -112,6 +114,28 @@ const toolDefinitions = [
       },
       required: ["points"]
     }
+  },
+  {
+    type: "function",
+    name: "search_nearby_places",
+    description: "Search nearby map POIs such as restaurants, lodging, or attractions around a coordinate.",
+    parameters: {
+      type: "object",
+      properties: {
+        category: { type: "string" },
+        center: {
+          type: "object",
+          properties: {
+            lat: { type: "number" },
+            lng: { type: "number" }
+          },
+          required: ["lat", "lng"]
+        },
+        limit: { type: "integer" },
+        radiusMeters: { type: "integer" }
+      },
+      required: ["category", "center"]
+    }
   }
 ];
 
@@ -130,7 +154,15 @@ async function executeTool(name, args) {
     case "search_social_reviews":
       return xhs.searchSocialReviews(args);
     case "route_places":
+      if (isChinaRoute(args.points) && amap.enabled()) return amap.routePlaces(args);
+      if (mapbox.enabled()) return mapbox.routePlaces(args);
+      if (amap.enabled()) return amap.routePlaces(args);
       return ors.routePlaces(args);
+    case "search_nearby_places":
+      if (isChinaPoint(args.center) && amap.enabled()) return amap.searchNearby(args);
+      if (mapbox.enabled()) return mapbox.searchNearby(args);
+      if (amap.enabled()) return amap.searchNearby(args);
+      return { ok: false, source: "map-search-fallback", items: [], error: "No map POI provider configured." };
     default:
       throw new Error(`unknown agent tool: ${name}`);
   }
@@ -140,3 +172,12 @@ module.exports = {
   executeTool,
   toolDefinitions
 };
+
+function isChinaRoute(points = []) {
+  const usable = (Array.isArray(points) ? points : []).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+  return usable.length > 0 && usable.every(point => point.lat >= 18 && point.lat <= 54 && point.lng >= 73 && point.lng <= 135);
+}
+
+function isChinaPoint(point = {}) {
+  return Number.isFinite(point.lat) && Number.isFinite(point.lng) && point.lat >= 18 && point.lat <= 54 && point.lng >= 73 && point.lng <= 135;
+}

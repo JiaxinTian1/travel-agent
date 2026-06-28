@@ -194,7 +194,7 @@ async function runChatCompletionsWithTools({ instructions, input, maxToolRounds 
   };
 }
 
-async function recommendPlaceWithModel({ planner, category, memory = "" }) {
+async function recommendPlaceWithModel({ planner, category, prompt = "", memory = "" }) {
   const categoryGuide = {
     restaurants: "Recommend one concrete restaurant or cafe.",
     hotels: "Recommend one concrete hotel. Use search_hotels unless the planner/user clearly prefers homestays, then use search_homestays.",
@@ -212,6 +212,7 @@ async function recommendPlaceWithModel({ planner, category, memory = "" }) {
   const input = {
     task: categoryGuide[category] || "Recommend one concrete travel item.",
     category,
+    userPrompt: prompt,
     destinationName: planner.destinationName,
     userMemory: memory,
     plannerSummary: {
@@ -238,9 +239,33 @@ async function routeWithModel({ planner, points, memory = "" }) {
   return result.json;
 }
 
+async function researchDestinationsWithModel({ query = "", memory = "", seed = "", previous = [] }) {
+  const instructions = [
+    "You are the destination researcher for a personalized travel planning app.",
+    "Generate fresh, diverse destination candidates from the user's query and durable memory.",
+    "Do not pick from a fixed list. Use the seed to vary the candidate set; avoid repeating previous destination names when possible.",
+    "Prefer concrete countries, regions, cities, islands, or route areas that can later become itinerary planners.",
+    "First collect/estimate structured evidence for each candidate. The app runner will calculate final scores from evidence, so do not smooth scores to look similar.",
+    "Return ONLY JSON with this shape:",
+    '{"summary":"...","candidates":[{"id":"slug","name":"...","rank":1,"detail":{"nature":"...","culture":"...","weather":"...","reviews":"...","flights":"...","cost":"...","premium":"...","duration":"..."},"evidence":{"natureRating":0,"cultureRating":0,"reviewRating":0,"weatherRisk":0,"flightOptions":0,"avgFlightHours":0,"totalCostCny":0,"premiumPercent":0,"sources":["estimate|tool|web"],"notes":"..."},"scores":{"nature":0,"culture":0,"weather":0,"reviews":0,"flights":0,"cost":0,"premium":0,"duration":0}}]}',
+    "Evidence rules: nature/culture/review ratings are 0-10 higher is better; weatherRisk is 0-10 higher is worse; flightOptions is an estimated count across all user origins; avgFlightHours is average one-way flight hours across origins; totalCostCny is estimated total per-person roundtrip flight plus lodging budget in CNY; premiumPercent is estimated price premium versus three nearby alternative date windows.",
+    "Scores are optional fallback only. Final scores will be recomputed by the runner from evidence.",
+    "Return 4 to 6 candidates. IDs must be lowercase ascii slugs."
+  ].join("\n");
+  const input = {
+    seed,
+    query,
+    memory,
+    previousDestinations: previous.slice(0, 40)
+  };
+  const result = await runWithTools({ instructions, input: JSON.stringify(input), maxToolRounds: 0 });
+  return result.json;
+}
+
 module.exports = {
   isEnabled,
   recommendPlaceWithModel,
+  researchDestinationsWithModel,
   routeWithModel,
   runWithTools
 };

@@ -16,8 +16,8 @@ Travel Agent 是一个 agent 驱动的旅行规划工作区。它帮助旅行负
 - **个性化规划**：结合可编辑的 `query` 和 `memory`，考虑偏好、去过的地方、住宿风格、航班约束和预算信号。
 - **多个 planner**：每个候选目的地可以生成独立 planner，并保留可编辑状态。
 - **拖拽式日程**：把航班、酒店、餐厅和景点安排进 2 小时时间块表格。
-- **工具联动**：通过本地工具层连接 Booking、Airbnb、小红书、飞猪/FlyAI 和 OpenRouteService。
-- **路线视图**：使用 OpenRouteService 计算路线，并用稳定的路线图展示行程顺序。
+- **工具联动**：通过本地工具层连接 Booking、Airbnb、小红书、飞猪/FlyAI、Mapbox、高德地图和 OpenRouteService。
+- **路线视图**：配置后优先使用 Mapbox 全球地图，也可使用高德地图，并保留 OpenRouteService 和 SVG 路线图 fallback。
 - **Codex skill 支持**：内置轻量 `travel-agent` skill，让 Codex 可以通过本地 server API 操作 app。
 
 ## 能做什么 🧭
@@ -50,7 +50,7 @@ http://127.0.0.1:8080/
 cp app/.env.example app/.env
 ```
 
-如果需要模型调用、OpenRouteService 路线计算，或工具层 API key，可以填写 `app/.env`。
+如果需要模型调用、Mapbox、高德地图、OpenRouteService 路线计算，或工具层 API key，可以填写 `app/.env`。
 
 ## 可选安装 🛠️
 

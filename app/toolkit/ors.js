@@ -64,6 +64,9 @@ async function routePlaces(params) {
       line: points,
       geometry: feature.geometry,
       summary: `OpenRouteService ${profile}: ${distanceKm}, ${durationMin}`,
+      distanceMeters: summary.distance,
+      durationSeconds: summary.duration,
+      mode: profile,
       ors: {
         bbox: data.bbox,
         properties: feature.properties

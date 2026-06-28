@@ -2,13 +2,19 @@
 
 const modelRunner = require("./modelRunner");
 const memoryStore = require("./memoryStore");
+const amap = require("../toolkit/amap");
+const mapbox = require("../toolkit/mapbox");
 const ors = require("../toolkit/ors");
+const booking = require("../toolkit/booking");
+const airbnb = require("../toolkit/airbnb");
+const fz = require("../toolkit/fz");
+const xhs = require("../toolkit/xhs");
 
 const typeLabels = {
   restaurant: "餐厅",
   hotel: "住宿",
   attraction: "景点",
-  flight: "航班"
+  flight: "机场"
 };
 
 const tripDates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
@@ -30,11 +36,7 @@ const recommendationPools = {
     ["Dry Bridge Market", "attraction", 41.7035, 44.8012, "跳蚤市场｜适合轻松逛"],
     ["Mtskheta Old Town", "attraction", 41.8452, 44.7209, "古都小镇｜可和 Jvari 串联"]
   ],
-  flights: [
-    ["TBS 机场缓冲", "flight", 41.6692, 44.9547, "用于多出发地抵达/返程缓冲"],
-    ["TBS -> 市区交通", "flight", 41.6692, 44.9547, "机场接送/打车/包车段"],
-    ["返程转机缓冲", "flight", 41.6692, 44.9547, "各自返程时段占位"]
-  ]
+  flights: []
 };
 
 function stablePlannerId(destination) {
@@ -45,8 +47,133 @@ function point(id, name, type, lat, lng, note, source = "agent-runner") {
   return { id, name, type, lat, lng, note, source, confidence: "medium" };
 }
 
-function destination(id, name, score, rank, detail, scores, seed) {
-  return { id, plannerId: stablePlannerId({ id, seed }), name, score, rank, detail, scores, seed };
+function destination(id, name, score, rank, detail, scores, seed, evidence = {}) {
+  return { id, plannerId: stablePlannerId({ id, seed }), name, score, rank, detail, scores, seed, evidence };
+}
+
+function slugify(value, fallback = "destination") {
+  const slug = String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || `${fallback}-${Math.abs(hash(value || fallback)).toString(36)}`;
+}
+
+function clampScore(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 5;
+  return Math.max(0, Math.min(10, number));
+}
+
+function numberOrNull(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function clampNumber(value, min, max) {
+  const number = numberOrNull(value);
+  if (number === null) return null;
+  return Math.max(min, Math.min(max, number));
+}
+
+function normalizeDetail(detail = {}) {
+  return {
+    nature: String(detail.nature || "自然特色待补充实时证据。"),
+    culture: String(detail.culture || "人文特色待补充实时证据。"),
+    weather: String(detail.weather || "季节天气待查。"),
+    reviews: String(detail.reviews || "网络评价待接小红书/网页证据。"),
+    flights: String(detail.flights || "航班数量待查。"),
+    cost: String(detail.cost || "成本预算待查实时航班和住宿。"),
+    premium: String(detail.premium || "价格溢价待跑对比日期。"),
+    duration: String(detail.duration || "飞行时间待按出发地查询。"),
+    ...detail
+  };
+}
+
+function normalizeScores(scores = {}) {
+  return {
+    nature: clampScore(scores.nature),
+    culture: clampScore(scores.culture),
+    weather: clampScore(scores.weather),
+    reviews: clampScore(scores.reviews),
+    flights: clampScore(scores.flights),
+    cost: clampScore(scores.cost),
+    premium: clampScore(scores.premium),
+    duration: clampScore(scores.duration)
+  };
+}
+
+function totalScore(scores) {
+  return Number((Object.values(scores).reduce((sum, score) => sum + score, 0) / 8 * 10).toFixed(1));
+}
+
+function normalizeEvidence(evidence = {}, detail = {}, scores = {}) {
+  const cost = evidence.cost || {};
+  const premium = evidence.premium || {};
+  const flights = evidence.flights || {};
+  const duration = evidence.duration || {};
+  const weather = evidence.weather || {};
+  const reviews = evidence.reviews || {};
+  const nature = evidence.nature || {};
+  const culture = evidence.culture || {};
+  return {
+    natureRating: clampNumber(evidence.natureRating ?? nature.rating ?? scores.nature, 0, 10),
+    cultureRating: clampNumber(evidence.cultureRating ?? culture.rating ?? scores.culture, 0, 10),
+    reviewRating: clampNumber(evidence.reviewRating ?? reviews.rating ?? scores.reviews, 0, 10),
+    weatherRisk: clampNumber(evidence.weatherRisk ?? weather.risk, 0, 10),
+    weatherRating: clampNumber(evidence.weatherRating ?? weather.rating ?? scores.weather, 0, 10),
+    flightOptions: numberOrNull(evidence.flightOptions ?? flights.options ?? flights.count),
+    avgFlightHours: numberOrNull(evidence.avgFlightHours ?? duration.avgHours ?? duration.hours),
+    totalCostCny: numberOrNull(evidence.totalCostCny ?? cost.totalCny ?? cost.cny),
+    premiumPercent: numberOrNull(evidence.premiumPercent ?? premium.percent),
+    sources: Array.isArray(evidence.sources) ? evidence.sources : [],
+    notes: String(evidence.notes || detail.summary || "")
+  };
+}
+
+function scoreFromRange(value, values, { inverse = false, fallback = 5, minScore = 2, maxScore = 10 } = {}) {
+  const numeric = values.filter(item => Number.isFinite(item));
+  if (!Number.isFinite(value) || numeric.length < 2) return clampScore(fallback);
+  const min = Math.min(...numeric);
+  const max = Math.max(...numeric);
+  if (max === min) return clampScore(fallback);
+  const ratio = (value - min) / (max - min);
+  const adjusted = inverse ? 1 - ratio : ratio;
+  return Number((minScore + adjusted * (maxScore - minScore)).toFixed(1));
+}
+
+function scoredCandidatesFromEvidence(candidates) {
+  const all = candidates.map(candidate => candidate.evidence || {});
+  const flightOptions = all.map(item => item.flightOptions);
+  const costs = all.map(item => item.totalCostCny);
+  const premiums = all.map(item => item.premiumPercent);
+  const durations = all.map(item => item.avgFlightHours);
+  return candidates.map(candidate => {
+    const evidence = candidate.evidence || {};
+    const rawScores = candidate.scores || {};
+    const scores = {
+      nature: clampScore(evidence.natureRating ?? rawScores.nature),
+      culture: clampScore(evidence.cultureRating ?? rawScores.culture),
+      weather: clampScore(evidence.weatherRisk !== null && evidence.weatherRisk !== undefined
+        ? 10 - evidence.weatherRisk
+        : evidence.weatherRating ?? rawScores.weather),
+      reviews: clampScore(evidence.reviewRating ?? rawScores.reviews),
+      flights: scoreFromRange(evidence.flightOptions, flightOptions, { fallback: rawScores.flights }),
+      cost: scoreFromRange(evidence.totalCostCny, costs, { inverse: true, fallback: rawScores.cost }),
+      premium: scoreFromRange(evidence.premiumPercent, premiums, { inverse: true, fallback: rawScores.premium }),
+      duration: scoreFromRange(evidence.avgFlightHours, durations, { inverse: true, fallback: rawScores.duration })
+    };
+    return {
+      ...candidate,
+      scores,
+      score: totalScore(scores),
+      scoringModel: "evidence-v1"
+    };
+  });
 }
 
 function genericDetail(nature, summary, flights) {
@@ -106,11 +233,260 @@ function hash(value) {
 
 async function rerollResearch(state, context = {}) {
   const seed = Date.now().toString(36).slice(-6);
-  const set = researchSet(seed, context);
+  let set = null;
+  if (modelRunner.isEnabled()) {
+    try {
+      const previous = state.researcher.sets
+        .flatMap(item => item.candidates || [])
+        .map(candidate => candidate.name)
+        .filter(Boolean);
+      const generated = await modelRunner.researchDestinationsWithModel({
+        query: context.query || "",
+        memory: context.memory || "",
+        seed,
+        previous
+      });
+      set = await normalizeResearchSet(generated, seed, context);
+    } catch (error) {
+      state.researcher.lastAgentError = error.message;
+    }
+  }
+  if (!set) set = researchSet(seed, context);
   state.researcher.sets.unshift(set);
   state.researcher.setIndex = 0;
   state.activeTab = "researcher";
   return { state, set };
+}
+
+async function normalizeResearchSet(generated, seed, context = {}) {
+  const candidates = Array.isArray(generated?.candidates) ? generated.candidates : [];
+  if (!candidates.length) return null;
+  const normalized = candidates.slice(0, 6).map((candidate, index) => {
+    const modelScores = normalizeScores(candidate.scores);
+    const detail = normalizeDetail(candidate.detail);
+    const evidence = normalizeEvidence(candidate.evidence, detail, modelScores);
+    const id = slugify(candidate.id || candidate.name, `destination-${index + 1}`);
+    return destination(
+      id,
+      String(candidate.name || `候选目的地 ${index + 1}`),
+      0,
+      index + 1,
+      detail,
+      modelScores,
+      `llm-${seed}`,
+      evidence
+    );
+  });
+  const enriched = await enrichResearchCandidates(normalized, context);
+  const scored = scoredCandidatesFromEvidence(enriched);
+  scored.sort((a, b) => Number(b.score) - Number(a.score));
+  scored.forEach((candidate, index) => {
+    candidate.rank = index + 1;
+    candidate.plannerId = stablePlannerId(candidate);
+  });
+  return applyResearchContext({
+    seed: `llm-${seed}`,
+    summary: String(generated?.summary || "LLM 先生成候选和结构化证据，runner 使用 evidence-v1 公式重算评分。"),
+    source: "llm-agent",
+    scoringModel: "evidence-v1",
+    candidates: scored
+  }, context);
+}
+
+async function enrichResearchCandidates(candidates, context = {}) {
+  const travel = parseTravelContext(context.query || "");
+  return Promise.all(candidates.map(candidate => enrichResearchCandidate(candidate, travel)));
+}
+
+async function enrichResearchCandidate(candidate, travel) {
+  const baseEvidence = { ...(candidate.evidence || {}) };
+  const sources = new Set(baseEvidence.sources || []);
+  const errors = [];
+  const destination = candidate.name;
+  const adults = travel.adults || 1;
+  const flightOrigin = travel.origins.length ? travel.origins.join("/") : "";
+  const flightTimeout = Number(process.env.RESEARCH_FLIGHT_TIMEOUT || 45000);
+  const bookingTimeout = Number(process.env.RESEARCH_BOOKING_TIMEOUT || 45000);
+  const airbnbTimeout = Number(process.env.RESEARCH_AIRBNB_TIMEOUT || 45000);
+  const xhsTimeout = Number(process.env.RESEARCH_XHS_TIMEOUT || 45000);
+  const calls = [
+    withTimeout(fz.searchFlights({
+      origin: flightOrigin,
+      destination,
+      departDate: travel.departDate,
+      returnDate: travel.returnDate,
+      adults,
+      timeoutMs: flightTimeout
+    }), flightTimeout + 1000).then(result => ({ kind: "flights", result })).catch(error => ({ kind: "flights", error })),
+    withTimeout(booking.searchHotels({
+      destination,
+      checkIn: travel.departDate,
+      checkOut: travel.returnDate,
+      adults,
+      rooms: 1,
+      timeoutMs: bookingTimeout
+    }), bookingTimeout + 1000).then(result => ({ kind: "booking", result })).catch(error => ({ kind: "booking", error })),
+    withTimeout(airbnb.searchHomestays({
+      location: destination,
+      checkIn: travel.departDate,
+      checkOut: travel.returnDate,
+      adults,
+      timeoutMs: airbnbTimeout
+    }), airbnbTimeout + 1000).then(result => ({ kind: "airbnb", result })).catch(error => ({ kind: "airbnb", error })),
+    withTimeout(xhs.searchSocialReviews({
+      keyword: `${destination} 旅行 评价`,
+      destination,
+      topic: "旅行评价",
+      timeoutMs: xhsTimeout
+    }), xhsTimeout + 1000).then(result => ({ kind: "xhs", result })).catch(error => ({ kind: "xhs", error }))
+  ];
+  const results = await Promise.all(calls);
+  const toolEvidence = {};
+  const detailPatch = {};
+  for (const item of results) {
+    if (item.error) {
+      errors.push(`${item.kind}: ${item.error.message || item.error}`);
+      continue;
+    }
+    const text = resultText(item.result);
+    if (item.result?.ok) sources.add(item.kind);
+    if (item.kind === "flights") {
+      const parsed = parseFlightEvidence(text, item.result?.data);
+      Object.assign(toolEvidence, parsed.evidence);
+      if (parsed.detail) {
+        detailPatch.flights = parsed.detail.flights;
+        detailPatch.duration = parsed.detail.duration;
+      }
+    } else if (item.kind === "booking" || item.kind === "airbnb") {
+      const parsed = parseLodgingEvidence(text, item.result?.data);
+      if (parsed.totalCostCny !== null) {
+        const previous = toolEvidence.totalCostCny ?? baseEvidence.totalCostCny;
+        toolEvidence.totalCostCny = previous ? Math.round(previous + parsed.totalCostCny) : parsed.totalCostCny;
+      }
+      if (parsed.detail) detailPatch.cost = [detailPatch.cost, parsed.detail].filter(Boolean).join("；");
+    } else if (item.kind === "xhs") {
+      const parsed = parseReviewEvidence(text, item.result?.data);
+      if (parsed.reviewRating !== null) toolEvidence.reviewRating = parsed.reviewRating;
+      if (parsed.detail) detailPatch.reviews = parsed.detail;
+    }
+  }
+  const evidence = normalizeEvidence({
+    ...baseEvidence,
+    ...toolEvidence,
+    sources: [...sources],
+    notes: [baseEvidence.notes, errors.length ? `tool errors: ${errors.slice(0, 3).join(" | ")}` : ""].filter(Boolean).join("；")
+  }, candidate.detail, candidate.scores);
+  return {
+    ...candidate,
+    detail: {
+      ...candidate.detail,
+      ...detailPatch
+    },
+    evidence
+  };
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout ${ms}ms`)), ms);
+    Promise.resolve(promise)
+      .then(value => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function resultText(result) {
+  return [
+    typeof result?.rawText === "string" ? result.rawText : "",
+    typeof result?.stderr === "string" ? result.stderr : "",
+    result?.data ? JSON.stringify(result.data).slice(0, 12000) : ""
+  ].filter(Boolean).join("\n");
+}
+
+function parseTravelContext(query) {
+  const text = String(query || "");
+  const knownOrigins = ["上海", "北京", "重庆", "广州", "深圳", "成都", "杭州", "南京", "武汉", "西安", "香港", "台北", "天津", "青岛", "厦门"];
+  const origins = knownOrigins.filter(city => text.includes(city)).slice(0, 4);
+  const dates = [...text.matchAll(/(\d{1,2})[/-](\d{1,2})/g)].map(match => `${match[1].padStart(2, "0")}-${match[2].padStart(2, "0")}`);
+  const year = new Date().getFullYear();
+  return {
+    origins,
+    departDate: dates[0] ? `${year}-${dates[0]}` : "",
+    returnDate: dates[1] ? `${year}-${dates[1]}` : "",
+    adults: Math.max(1, origins.length || Number((text.match(/(\d+)\s*人/) || [])[1]) || 1)
+  };
+}
+
+function parseFlightEvidence(text, data) {
+  const source = `${text || ""}\n${data ? JSON.stringify(data) : ""}`;
+  const prices = extractCnyValues(source);
+  const durations = extractHourValues(source);
+  const flightOptions = countMatches(source, /(航班|flight|Flight|班次|中转|直飞)/g);
+  const avgPrice = average(prices);
+  const avgHours = average(durations);
+  return {
+    evidence: {
+      flightOptions: flightOptions || null,
+      avgFlightHours: avgHours,
+      totalCostCny: avgPrice ? Math.round(avgPrice) : null
+    },
+    detail: prices.length || durations.length || flightOptions
+      ? {
+          flights: `工具查询：约 ${flightOptions || "若干"} 个航班/航段线索。`,
+          duration: avgHours ? `工具查询平均飞行/行程时间约 ${avgHours.toFixed(1)} 小时。` : "工具已查航班，飞行时间需人工核对。"
+        }
+      : null
+  };
+}
+
+function parseLodgingEvidence(text, data) {
+  const source = `${text || ""}\n${data ? JSON.stringify(data) : ""}`;
+  const prices = extractCnyValues(source);
+  const avg = average(prices);
+  return {
+    totalCostCny: avg ? Math.round(avg) : null,
+    detail: avg ? `住宿工具查询均价线索约 ¥${Math.round(avg)}。` : ""
+  };
+}
+
+function parseReviewEvidence(text, data) {
+  const source = `${text || ""}\n${data ? JSON.stringify(data) : ""}`;
+  const positive = countMatches(source, /(推荐|好玩|值得|漂亮|震撼|方便|美|喜欢|不错|惊喜)/g);
+  const negative = countMatches(source, /(避雷|踩雷|不好|失望|贵|坑|排队|危险|累|脏|不推荐)/g);
+  const total = positive + negative;
+  const rating = total ? Number((5 + ((positive - negative) / total) * 4).toFixed(1)) : null;
+  return {
+    reviewRating: rating === null ? null : clampScore(rating),
+    detail: total ? `小红书/社区线索：正向 ${positive}，负向 ${negative}，情绪评分约 ${clampScore(rating)}。` : ""
+  };
+}
+
+function extractCnyValues(text) {
+  return [...String(text || "").matchAll(/(?:¥|￥|CNY|RMB|人民币|元)\s*([0-9][0-9,]*(?:\.\d+)?)/gi)]
+    .map(match => Number(match[1].replace(/,/g, "")))
+    .filter(value => Number.isFinite(value) && value > 50 && value < 200000);
+}
+
+function extractHourValues(text) {
+  return [...String(text || "").matchAll(/([0-9]+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours|小时)/gi)]
+    .map(match => Number(match[1]))
+    .filter(value => Number.isFinite(value) && value > 0 && value < 80);
+}
+
+function countMatches(text, pattern) {
+  return [...String(text || "").matchAll(pattern)].length;
+}
+
+function average(values) {
+  const filtered = values.filter(value => Number.isFinite(value));
+  if (!filtered.length) return null;
+  return filtered.reduce((sum, value) => sum + value, 0) / filtered.length;
 }
 
 function findDestination(state, key) {
@@ -174,7 +550,7 @@ function baseCandidates(destination) {
     restaurants: [point("r1", defaults.restaurant.name, "restaurant", defaults.restaurant.lat, defaults.restaurant.lng, "由 agent 后续补充")],
     hotels: [point("h1", defaults.hotel.name, "hotel", defaults.hotel.lat, defaults.hotel.lng, "由 Booking/Airbnb 后续补充")],
     attractions: [point("a1", defaults.attraction.name || destination.name, "attraction", defaults.attraction.lat, defaults.attraction.lng, "核心目的地占位")],
-    flights: [point("f1", defaults.flight.name, "flight", defaults.flight.lat, defaults.flight.lng, "由 FlyAI 后续补充")]
+    flights: (defaults.airports || [defaults.flight]).map((airport, index) => point(`f${index + 1}`, airport.name, "flight", airport.lat, airport.lng, airport.note || "主要机场"))
   };
 }
 
@@ -184,23 +560,37 @@ function destinationDefaults(destination) {
       flight: { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206 },
       restaurant: { name: "Shkoder old town restaurant area", lat: 42.0686, lng: 19.5126 },
       hotel: { name: "Theth village guesthouse area", lat: 42.3959, lng: 19.7745 },
-      attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 }
+      attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 },
+      airports: [
+        { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206, note: "阿尔巴尼亚主机场｜TIA" },
+        { name: "Kukes International Airport", lat: 42.0337, lng: 20.4159, note: "北部备选机场｜KFZ" }
+      ]
     },
     "azores": {
       flight: { name: "Ponta Delgada Airport", lat: 37.7412, lng: -25.6979 },
       restaurant: { name: "Ponta Delgada restaurant area", lat: 37.7410, lng: -25.6756 },
       hotel: { name: "Ponta Delgada hotel area", lat: 37.7394, lng: -25.6687 },
-      attraction: { name: "Sete Cidades", lat: 37.8620, lng: -25.7948 }
+      attraction: { name: "Sete Cidades", lat: 37.8620, lng: -25.7948 },
+      airports: [
+        { name: "Ponta Delgada Airport", lat: 37.7412, lng: -25.6979, note: "圣米格尔岛主机场｜PDL" },
+        { name: "Lajes Airport", lat: 38.7618, lng: -27.0908, note: "特塞拉岛机场｜TER" },
+        { name: "Horta Airport", lat: 38.5199, lng: -28.7159, note: "法亚尔岛机场｜HOR" }
+      ]
     },
     "laos-north": {
       flight: { name: "Luang Prabang Airport", lat: 19.8973, lng: 102.1608 },
       restaurant: { name: "Luang Prabang old town restaurant area", lat: 19.8856, lng: 102.1348 },
       hotel: { name: "Luang Prabang old town hotel area", lat: 19.8871, lng: 102.1359 },
-      attraction: { name: "Kuang Si Waterfall", lat: 19.7493, lng: 101.9920 }
+      attraction: { name: "Kuang Si Waterfall", lat: 19.7493, lng: 101.9920 },
+      airports: [
+        { name: "Luang Prabang Airport", lat: 19.8973, lng: 102.1608, note: "琅勃拉邦机场｜LPQ" },
+        { name: "Wattay International Airport", lat: 17.9883, lng: 102.5633, note: "万象国际机场｜VTE" },
+        { name: "Oudomxay Airport", lat: 20.6827, lng: 101.9940, note: "北部山区机场｜ODY" }
+      ]
     }
   };
   return defaults[destination.id] || {
-    flight: { name: "多出发地航班待查", lat: 41.6692, lng: 44.9547 },
+    flight: { name: "主要机场待确认", lat: 41.6692, lng: 44.9547, note: "由 agent 后续补充机场清单" },
     restaurant: { name: "当地特色餐厅待查", lat: 41.7151, lng: 44.8271 },
     hotel: { name: "核心住宿区域待选", lat: 41.7151, lng: 44.8271 },
     attraction: { name: destination.name, lat: 41.7151, lng: 44.8271 }
@@ -230,8 +620,9 @@ function georgiaCandidates() {
       point("a6", "Chronicle of Georgia", "attraction", 41.7712, 44.8106, "城市北部纪念碑")
     ],
     flights: [
-      point("f0", "三地出发 -> TBS 机场集合", "flight", 41.6692, 44.9547, "上海/北京/重庆分别抵达"),
-      point("f4", "TBS -> 三地返程待选航班", "flight", 41.6692, 44.9547, "各自返程")
+      point("f0", "Tbilisi International Airport", "flight", 41.6692, 44.9547, "第比利斯主机场｜TBS"),
+      point("f1", "Kutaisi International Airport", "flight", 42.1767, 42.4826, "库塔伊西机场｜KUT"),
+      point("f2", "Batumi International Airport", "flight", 41.6103, 41.5997, "巴统机场｜BUS")
     ]
   };
 }
@@ -244,7 +635,7 @@ function put(planner, date, time, id, note) {
 
 function prefillPlanner(planner) {
   if (planner.destinationId !== "georgia-caucasus") {
-    put(planner, "9/25", "06:00-08:00", "f1", "多出发地航班待查");
+    put(planner, "9/25", "06:00-08:00", "f1", "多出发地抵达机场待查");
     put(planner, "9/25", "12:00-14:00", "r1", "午餐待查");
     put(planner, "9/25", "14:00-16:00", "a1", "核心景点占位");
     put(planner, "9/25", "22:00-24:00", "h1", "住宿待选");
@@ -264,7 +655,8 @@ function prefillPlanner(planner) {
   put(planner, "9/26", "22:00-24:00", "h3", "住宿");
 }
 
-async function recommendPlace(state, plannerId, category) {
+async function recommendPlace(state, plannerId, category, options = {}) {
+  const prompt = String(options.prompt || "").trim();
   const planner = state.planners.find(item => item.id === plannerId);
   if (!planner) {
     const error = new Error("planner not found");
@@ -277,11 +669,17 @@ async function recommendPlace(state, plannerId, category) {
     throw error;
   }
   let item = null;
+  try {
+    item = await recommendFromMap(planner, category, prompt);
+  } catch (error) {
+    planner.lastMapSearchError = error.message;
+  }
   if (modelRunner.isEnabled()) {
     try {
       const suggested = await modelRunner.recommendPlaceWithModel({
         planner,
         category,
+        prompt,
         memory: await memoryStore.readMemory()
       });
       if (suggested?.name && suggested?.type && Number.isFinite(Number(suggested.lat)) && Number.isFinite(Number(suggested.lng))) {
@@ -291,7 +689,7 @@ async function recommendPlace(state, plannerId, category) {
           suggested.type,
           Number(suggested.lat),
           Number(suggested.lng),
-          suggested.note || "LLM agent 推荐",
+          suggested.note || prompt || "按当前行程推荐",
           "llm-agent"
         );
       }
@@ -303,14 +701,60 @@ async function recommendPlace(state, plannerId, category) {
     const pool = recommendationPools[category];
     const offset = planner.candidates[category].length % pool.length;
     const [name, type, lat, lng, note] = pool[offset];
-    item = point(`${type}_${Date.now()}`, name, type, lat, lng, `${note}｜runner fallback 推荐`);
+    item = point(`${type}_${Date.now()}`, name, type, lat, lng, prompt ? `${note}｜${prompt}` : note);
   }
   planner.candidates[category].push(item);
   planner.updatedAt = new Date().toISOString();
   return { state, planner, item };
 }
 
-async function calculateRoute(state, plannerId) {
+async function recommendFromMap(planner, category, prompt = "") {
+  const center = recommendationCenter(planner);
+  if (!center) return null;
+  const domestic = isChinaPlanner(planner, [center]);
+  const searchArgs = {
+    category,
+    destination: planner.destinationName,
+    center: { lat: center.lat, lng: center.lng },
+    keyword: prompt,
+    limit: 8,
+    radiusMeters: 5000,
+    language: "zh"
+  };
+  const result = domestic && amap.enabled()
+    ? await amap.searchNearby(searchArgs)
+    : mapbox.enabled()
+      ? await mapbox.searchNearby(searchArgs)
+      : amap.enabled()
+        ? await amap.searchNearby(searchArgs)
+        : null;
+  const existing = new Set(Object.values(planner.candidates).flat().map(candidate => candidate.name));
+  const found = (result?.items || []).find(candidate => !existing.has(candidate.name));
+  if (!found) return null;
+  return point(
+    `${found.type}_${Date.now()}`,
+    found.name,
+    found.type,
+    found.lat,
+    found.lng,
+    `${found.note || "地图 POI 推荐"}｜${result.source}`,
+    result.source
+  );
+}
+
+function recommendationCenter(planner) {
+  const scheduled = Object.entries(planner.itinerary || {})
+    .map(([slot, item]) => ({ slot, item }))
+    .filter(({ item }) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+    .sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
+  const nonFlight = scheduled.find(({ item }) => item.type !== "flight");
+  if (nonFlight) return nonFlight.item;
+  return Object.values(planner.candidates || {})
+    .flat()
+    .find(item => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+}
+
+async function calculateRoute(state, plannerId, options = {}) {
   const planner = state.planners.find(item => item.id === plannerId);
   if (!planner) {
     const error = new Error("planner not found");
@@ -322,6 +766,32 @@ async function calculateRoute(state, plannerId) {
     .filter(({ item }) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     .sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
   const routePoints = points.map(({ slot, item }) => ({ slot, name: item.name, type: item.type, lat: item.lat, lng: item.lng }));
+  const domestic = isChinaPlanner(planner, routePoints);
+  const defaultMode = normalizeRouteMode(options.mode || planner.routeMode || "driving", domestic);
+  const segmentModes = { ...(planner.routeSegmentModes || {}), ...(options.segmentModes || {}) };
+  const mixedRoute = await calculateMixedRoute({ points, routePoints, defaultMode, domestic, segmentModes });
+  if (mixedRoute?.segments?.length) {
+    planner.route = {
+      updatedAt: new Date().toISOString(),
+      pointCount: routePoints.length,
+      line: routePoints,
+      geometry: mixedRoute.geometry,
+      summary: mixedRoute.summary,
+      source: mixedRoute.source,
+      mode: mixedRoute.mode,
+      distanceMeters: mixedRoute.distanceMeters,
+      durationSeconds: mixedRoute.durationSeconds,
+      segments: mixedRoute.segments,
+      providerPreference: domestic ? "china-domestic" : "global",
+      error: mixedRoute.error || null,
+      fallbackErrors: mixedRoute.fallbackErrors || null
+    };
+    planner.routeMode = defaultMode;
+    planner.routeSegmentModes = segmentModes;
+    planner.updatedAt = planner.route.updatedAt;
+    return { state, planner, route: planner.route };
+  }
+
   if (modelRunner.isEnabled()) {
     try {
       const route = await modelRunner.routeWithModel({
@@ -334,8 +804,11 @@ async function calculateRoute(state, plannerId) {
           updatedAt: new Date().toISOString(),
           pointCount: Number(route.pointCount || route.line.length),
           line: route.line,
-          summary: route.summary,
-          source: "llm-agent"
+          summary: `${route.summary}（Mapbox/高德/ORS 不可用，LLM 摘要）`,
+          source: "llm-agent",
+          mode: defaultMode,
+          providerPreference: domestic ? "china-domestic" : "global",
+          error: mixedRoute?.error || null
         };
         planner.updatedAt = planner.route.updatedAt;
         return { state, planner, route: planner.route };
@@ -344,29 +817,212 @@ async function calculateRoute(state, plannerId) {
       planner.lastAgentError = error.message;
     }
   }
-  const orsResult = await ors.routePlaces({ points: routePoints });
-  if (orsResult.data?.geometry) {
-    planner.route = {
-      updatedAt: new Date().toISOString(),
-      pointCount: orsResult.data.pointCount,
-      line: orsResult.data.line,
-      geometry: orsResult.data.geometry,
-      summary: orsResult.data.summary,
-      source: orsResult.source,
-      error: orsResult.error || null
-    };
-    planner.updatedAt = planner.route.updatedAt;
-    return { state, planner, route: planner.route };
-  }
   planner.route = {
     updatedAt: new Date().toISOString(),
     pointCount: points.length,
     line: routePoints,
     summary: `${points.length} 个已排程点位；下一步可接 OpenRouteService 替换为真实路网路线。`,
-    source: "agent-runner-fallback"
+    source: "agent-runner-fallback",
+    mode: defaultMode
   };
   planner.updatedAt = planner.route.updatedAt;
   return { state, planner, route: planner.route };
+}
+
+async function calculateMixedRoute({ points, routePoints, defaultMode, domestic, segmentModes }) {
+  if (routePoints.length < 2) {
+    return {
+      source: "route-fallback",
+      mode: defaultMode,
+      distanceMeters: 0,
+      durationSeconds: 0,
+      geometry: { type: "LineString", coordinates: routePoints.map(point => [point.lng, point.lat]) },
+      segments: [],
+      summary: "少于 2 个点，无法计算路线。"
+    };
+  }
+  const segments = [];
+  const coordinates = [];
+  const sources = new Set();
+  const fallbackErrors = {};
+  let totalDistance = 0;
+  let totalDuration = 0;
+  for (let index = 0; index < routePoints.length - 1; index += 1) {
+    const key = segmentKey(points[index].slot, points[index + 1].slot);
+    const rawMode = segmentModes[key] || defaultMode;
+    const mode = normalizeRouteMode(rawMode, domestic);
+    const from = routePoints[index];
+    const to = routePoints[index + 1];
+    const segment = mode === "flight"
+      ? flightSegment(from, to, index, key)
+      : await mapSegment({ from, to, index, key, mode, domestic });
+    if (segment.error) fallbackErrors[key] = segment.error;
+    sources.add(segment.source);
+    totalDistance += Number.isFinite(segment.distanceMeters) ? segment.distanceMeters : 0;
+    totalDuration += Number.isFinite(segment.durationSeconds) ? segment.durationSeconds : 0;
+    const segmentCoordinates = segment.geometry?.coordinates?.length
+      ? segment.geometry.coordinates
+      : [[from.lng, from.lat], [to.lng, to.lat]];
+    segment.geometry = { type: "LineString", coordinates: segmentCoordinates };
+    if (!coordinates.length) coordinates.push(...segmentCoordinates);
+    else coordinates.push(...segmentCoordinates.slice(1));
+    segments.push(segment);
+  }
+  const modeSet = new Set(segments.map(segment => segment.mode));
+  return {
+    source: sources.size === 1 ? [...sources][0] : "mixed-route",
+    mode: modeSet.size === 1 ? [...modeSet][0] : "mixed",
+    distanceMeters: totalDistance || undefined,
+    durationSeconds: totalDuration || undefined,
+    geometry: { type: "LineString", coordinates },
+    segments,
+    fallbackErrors: Object.keys(fallbackErrors).length ? fallbackErrors : null,
+    summary: `混合路线：${formatDistance(totalDistance)}, ${formatDuration(totalDuration)}`
+  };
+}
+
+async function mapSegment({ from, to, index, key, mode, domestic }) {
+  if (from.lat === to.lat && from.lng === to.lng) {
+    return {
+      key,
+      from: from.name,
+      to: to.name,
+      fromIndex: index,
+      toIndex: index + 1,
+      mode: "same-place",
+      source: "same-place",
+      distanceMeters: 0,
+      durationSeconds: 0,
+      summary: "同一地点",
+      geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] }
+    };
+  }
+  const providers = domestic
+    ? [["amap", amap], ["mapbox", mapbox], ["ors", ors]]
+    : [["mapbox", mapbox], ["ors", ors], ["amap", amap]];
+  const errors = [];
+  for (const [name, provider] of providers) {
+    let result;
+    try {
+      result = await provider.routePlaces({ points: [from, to], mode, profile: mode });
+    } catch (error) {
+      result = { source: `${name}-fallback`, data: null, error: error.message };
+    }
+    if (!result.data?.geometry || result.source.endsWith("-fallback")) {
+      if (result.error) errors.push(`${name}: ${result.error}`);
+      continue;
+    }
+    const providerSegment = result.data.segments?.[0] || {};
+    return {
+      key,
+      from: from.name,
+      to: to.name,
+      fromIndex: index,
+      toIndex: index + 1,
+      mode: result.data.mode || mode,
+      source: result.source,
+      distanceMeters: providerSegment.distanceMeters ?? result.data.distanceMeters,
+      durationSeconds: providerSegment.durationSeconds ?? result.data.durationSeconds,
+      summary: providerSegment.summary || `${formatDistance(result.data.distanceMeters)}, ${formatDuration(result.data.durationSeconds)}`,
+      geometry: providerSegment.geometry || result.data.geometry
+    };
+  }
+  return directSegment(from, to, index, key, mode, errors.join("; "));
+}
+
+function flightSegment(from, to, index, key) {
+  const distanceMeters = haversineMeters(from, to);
+  const durationSeconds = Math.max(1800, distanceMeters / 230);
+  return {
+    key,
+    from: from.name,
+    to: to.name,
+    fromIndex: index,
+    toIndex: index + 1,
+    mode: "flight",
+    source: "flight-direct",
+    distanceMeters,
+    durationSeconds,
+    summary: `飞行段 ${formatDistance(distanceMeters)}, ${formatDuration(durationSeconds)}`,
+    geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] }
+  };
+}
+
+function directSegment(from, to, index, key, mode, error) {
+  const distanceMeters = haversineMeters(from, to);
+  return {
+    key,
+    from: from.name,
+    to: to.name,
+    fromIndex: index,
+    toIndex: index + 1,
+    mode,
+    source: "direct-fallback",
+    distanceMeters,
+    durationSeconds: undefined,
+    summary: `${formatDistance(distanceMeters)}, 时间待查`,
+    error,
+    geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] }
+  };
+}
+
+function segmentKey(fromSlot, toSlot) {
+  return `${fromSlot}->${toSlot}`;
+}
+
+function haversineMeters(a, b) {
+  const rad = value => value * Math.PI / 180;
+  const earth = 6371000;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const lat1 = rad(a.lat);
+  const lat2 = rad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * earth * Math.asin(Math.sqrt(h));
+}
+
+function formatDistance(value) {
+  const meters = Number(value);
+  if (!Number.isFinite(meters) || meters < 0) return "距离未知";
+  if (meters === 0) return "0 m";
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
+}
+
+function formatDuration(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return "时间未知";
+  if (seconds === 0) return "0 min";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function normalizeRouteMode(mode, domestic) {
+  const value = String(mode || "driving").toLowerCase();
+  if (["walk", "walking"].includes(value)) return "walking";
+  if (["flight", "fly", "plane", "air"].includes(value)) return "flight";
+  if (["bike", "cycling", "bicycling"].includes(value)) return domestic ? "bicycling" : "cycling";
+  if (["transit", "public", "bus", "public-transit"].includes(value)) return domestic ? "transit" : "driving";
+  if (["driving-traffic", "traffic"].includes(value)) return domestic ? "driving" : "driving-traffic";
+  return "driving";
+}
+
+function isChinaPlanner(planner, points = []) {
+  const usablePoints = points.filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+  if (usablePoints.length) return usablePoints.every(isChinaPoint);
+  return isChinaName(planner.destinationName) || isChinaName(planner.title);
+}
+
+function isChinaPoint(point) {
+  return point.lat >= 18 && point.lat <= 54 && point.lng >= 73 && point.lng <= 135;
+}
+
+function isChinaName(value) {
+  const text = String(value || "").toLowerCase();
+  return /中国|北京|上海|重庆|天津|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|广西|西藏|宁夏|新疆|香港|澳门|九寨沟|张家界|黄山|桂林|大理|丽江|成都|杭州|苏州|西安|厦门|青岛|哈尔滨|三亚/.test(text)
+    || /\b(china|beijing|shanghai|chongqing|chengdu|hangzhou|xian|xi'an|yunnan|sichuan|guangxi|tibet|xinjiang|guilin|zhangjiajie|huangshan|sanya|xiamen|qingdao|harbin|hong kong|macau)\b/.test(text);
 }
 
 function slotOrder(slot) {

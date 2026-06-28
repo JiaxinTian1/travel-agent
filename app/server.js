@@ -56,6 +56,35 @@ function sendJson(res, status, body) {
   res.end(payload);
 }
 
+function publicMapConfig() {
+  const amapJsApiKey = process.env.AMAP_JS_API_KEY || process.env.AMAP_MAPS_API_KEY || process.env.AMAP_API_KEY || "";
+  const mapboxAccessToken = process.env.MAPBOX_ACCESS_TOKEN || "";
+  return {
+    mapboxEnabled: Boolean(mapboxAccessToken),
+    mapboxAccessToken,
+    mapboxStyle: process.env.MAPBOX_STYLE || "mapbox://styles/mapbox/streets-v12",
+    mapboxServiceEnabled: Boolean(mapboxAccessToken),
+    amapEnabled: Boolean(amapJsApiKey),
+    amapJsApiKey,
+    amapSecurityJsCode: process.env.AMAP_SECURITY_JS_CODE || "",
+    amapServiceEnabled: Boolean(process.env.AMAP_MAPS_API_KEY || process.env.AMAP_WEB_SERVICE_KEY || process.env.AMAP_API_KEY),
+    orsEnabled: Boolean(process.env.ORS_API_KEY),
+    orsProfile: process.env.ORS_PROFILE || "driving-car"
+  };
+}
+
+function mapHealthConfig() {
+  const config = publicMapConfig();
+  return {
+    mapboxEnabled: config.mapboxEnabled,
+    mapboxServiceEnabled: config.mapboxServiceEnabled,
+    amapEnabled: config.amapEnabled,
+    amapServiceEnabled: config.amapServiceEnabled,
+    orsEnabled: config.orsEnabled,
+    orsProfile: config.orsProfile
+  };
+}
+
 function readRequestBody(req) {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -154,10 +183,13 @@ async function handleApi(req, res, pathname) {
       queryPath: QUERY_PATH,
       memoryPath: memoryStore.memoryPath(),
       llmEnabled: runner.isModelEnabled(),
-      orsEnabled: Boolean(process.env.ORS_API_KEY),
-      orsProfile: process.env.ORS_PROFILE || "driving-car",
+      ...mapHealthConfig(),
       model: process.env.OPENAI_MODEL || "gpt-5.5"
     });
+    return true;
+  }
+  if (pathname === "/api/config/maps" && req.method === "GET") {
+    sendJson(res, 200, publicMapConfig());
     return true;
   }
   if (pathname === "/api/board" && req.method === "GET") {
@@ -222,7 +254,9 @@ async function handleApi(req, res, pathname) {
     if (match && req.method === "POST") {
       const body = JSON.parse((await readRequestBody(req)) || "{}");
       const state = await readBoardState();
-      const result = await runner.recommendPlace(state, decodeURIComponent(match[1]), body.category);
+      const result = await runner.recommendPlace(state, decodeURIComponent(match[1]), body.category, {
+        prompt: body.prompt || body.userPrompt || ""
+      });
       result.state = await writeBoardState(result.state);
       sendJson(res, 200, result);
       return true;
@@ -231,8 +265,12 @@ async function handleApi(req, res, pathname) {
   {
     const match = pathname.match(/^\/api\/planners\/([^/]+)\/route$/);
     if (match && req.method === "POST") {
+      const body = JSON.parse((await readRequestBody(req)) || "{}");
       const state = await readBoardState();
-      const result = await runner.calculateRoute(state, decodeURIComponent(match[1]));
+      const result = await runner.calculateRoute(state, decodeURIComponent(match[1]), {
+        mode: body.mode || body.profile,
+        segmentModes: body.segmentModes || {}
+      });
       result.state = await writeBoardState(result.state);
       sendJson(res, 200, result);
       return true;

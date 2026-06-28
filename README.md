@@ -16,8 +16,8 @@ Travel Agent is an agent-driven travel planning workspace. It helps a trip organ
 - **Personalized planning**: use editable query and memory files to reflect user preferences, visited places, lodging style, flight constraints, and budget signals.
 - **Planner boards**: generate one planner per selected destination and keep multiple plans editable.
 - **Drag-and-drop itinerary**: organize flights, hotels, restaurants, and attractions into a 2-hour schedule grid.
-- **Agent tools**: connect model-driven decisions to Booking, Airbnb, Xiaohongshu, FlyAI/Fliggy, and OpenRouteService wrappers.
-- **Route view**: calculate routes with OpenRouteService and display a stable route diagram without relying on fragile map tiles.
+- **Agent tools**: connect model-driven decisions to Booking, Airbnb, Xiaohongshu, FlyAI/Fliggy, Mapbox, AMap/Gaode, and OpenRouteService wrappers.
+- **Route view**: show Mapbox or AMap/Gaode map backgrounds when configured, with OpenRouteService and SVG route-diagram fallbacks.
 - **Codex-ready skill**: includes a thin `travel-agent` skill so Codex can operate the app through the server API.
 
 ## Why It Is Different 🧭
@@ -50,7 +50,7 @@ Optional setup:
 cp app/.env.example app/.env
 ```
 
-Fill `app/.env` if you want model calls, OpenRouteService routes, or toolkit-specific keys.
+Fill `app/.env` if you want model calls, Mapbox maps, AMap/Gaode maps, OpenRouteService routes, or toolkit-specific keys.
 
 ## Install Helpers 🛠️
 
