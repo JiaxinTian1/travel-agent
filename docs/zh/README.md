@@ -8,73 +8,104 @@
   <a href="../index.html"><strong>文档首页</strong></a>
 </p>
 
-Travel Agent 是一个 agent 驱动的旅行规划工作区。它帮助旅行负责人从“去哪玩？”开始，逐步生成候选目的地、可编辑 planner、住宿/餐厅/景点/航班推荐，以及路线视图。
+Travel Agent 是一个 local-first 的旅行规划应用，由轻量 agent runner 驱动。它把目的地调研、planner tab、候选地点、行程单元格和路线图都保存成可继续编辑的状态。
 
-## 产品特色 🌍
+## 产品流程
 
-- **目的地调研**：当目的地还不确定时，生成多个候选地点并做横向比较。
-- **个性化规划**：结合可编辑的 `query` 和 `memory`，考虑偏好、去过的地方、住宿风格、航班约束和预算信号。
-- **多个 planner**：每个候选目的地可以生成独立 planner，并保留可编辑状态。
-- **拖拽式日程**：把航班、酒店、餐厅和景点安排进 2 小时时间块表格。
-- **工具联动**：通过本地工具层连接 Booking、Airbnb、小红书、飞猪/FlyAI、Mapbox、高德地图和 OpenRouteService。
-- **路线视图**：配置后优先使用 Mapbox 全球地图，也可使用高德地图，并保留 OpenRouteService 和 SVG 路线图 fallback。
-- **Codex skill 支持**：内置轻量 `travel-agent` skill，让 Codex 可以通过本地 server API 操作 app。
+```text
+workspace/query.md + app/agent/memory.md
+  -> researcher tab
+  -> planner tabs
+  -> 可编辑日程表
+  -> 路线地图
+```
 
-## 能做什么 🧭
+## 主要组件
 
-Travel Agent 不只是生成一段文本，而是把旅行计划保存成可继续编辑的状态：
+| 区域 | 路径 | 用途 |
+|---|---|---|
+| Web app | `app/index.html` | Researcher、planner、拖拽日程、地图路线 |
+| Server | `app/server.js` | 本地 API：状态、query、memory、research、planner action |
+| Agent runner | `app/agent/` | 模型调用、工具路由、推荐逻辑、memory 管理 |
+| Toolkit adapter | `app/toolkit/` | Booking、Airbnb、FlyAI、小红书、Google、Mapbox、高德的 JS 适配 |
+| Shell wrapper | `toolkit/` | 外部工具命令和登录脚本 |
+| Skills | `skills/` | Codex 使用的 researcher、planner、travel-agent workflow |
+| Workspace | `workspace/` | 当前 query 和本地运行状态 |
 
-- `query` 保存当前旅行需求。
-- `memory` 保存长期偏好和个人信息。
-- `researcher` 负责筛选和比较目的地。
-- `planner` 负责把选定目的地变成可编辑行程。
-- Web UI 和 Codex 都可以读取并更新同一份状态。
-
-## 启动 🚀
-
-在仓库根目录运行：
+## 启动
 
 ```bash
+cd /home/snowbolwer/travel-agent
 node app/server.js
 ```
 
-然后打开：
+打开：
 
 ```text
 http://127.0.0.1:8080/
 ```
 
-可选配置：
+## 安装和登录
 
 ```bash
-cp app/.env.example app/.env
-```
-
-如果需要模型调用、Mapbox、高德地图、OpenRouteService 路线计算，或工具层 API key，可以填写 `app/.env`。
-
-## 可选安装 🛠️
-
-检查或安装可选 live-data 依赖：
-
-```bash
-./install.sh
 ./install.sh --doctor
+./install.sh --install-gcloud
+./toolkit/login/login-status
+./toolkit/login/login-all
 ```
 
-## 项目结构 📁
+`login-all` 会包含 Google Monitoring 登录和小红书登录。Booking 和 Airbnb 匿名搜索不需要账号登录。
+
+## Google Maps
+
+Google 是海外地点和路线的主数据源。配置后，app 会在调用 Google API 前先查 Cloud Monitoring 真实用量：
+
+```env
+GOOGLE_USAGE_SOURCE=monitoring
+GOOGLE_CLOUD_PROJECT_ID=your-project-id
+```
+
+使用用户授权登录：
+
+```bash
+./toolkit/google/google-login
+./toolkit/google/google-usage
+```
+
+## 工具使用规则
+
+- Google Places：海外餐厅、景点、酒店坐标、导入地点解析的主数据源。
+- Google Routes：海外路线计算优先。
+- 高德：国内 planner 的地图和路线优先。
+- Mapbox：全球地图渲染和路线 fallback。
+- Booking：海外酒店价格、可订、评论和取消政策调研。
+- Airbnb：民宿、公寓、villa、厨房洗衣、家庭住宿和长住。
+- FlyAI/飞猪：机票、国内酒店、国内 POI 和旅行产品搜索。
+- 小红书：MCP 已登录可用时，用于社区评价和社交证据。
+
+## 本地状态
+
+不要提交这些文件：
 
 ```text
-app/        Web UI、本地 server、agent runner、工具函数
-skills/     Codex skills
-toolkit/    外部数据工具包装器
-workspace/  可编辑 query、本地状态、生成结果
-docs/       文档
+app/.env
+toolkit/**/.env
+workspace/app-state/
+workspace/outputs/
 ```
 
-## 当前状态 🧪
-
-这是一个 local-first 的活跃原型。主流程是：
+重要可编辑文件：
 
 ```text
-query + memory -> researcher -> planner -> editable itinerary -> route view
+workspace/query.md       # 当前旅行需求
+app/agent/memory.md      # 长期旅行记忆
 ```
+
+## 更多文档
+
+- [命令手册](commands.md)
+- [当前集成状态](status.md)
+- [Google toolkit](toolkit/google.md)
+- [Booking toolkit](toolkit/booking.md)
+- [Airbnb toolkit](toolkit/airbnb.md)
+- [FlyAI toolkit](toolkit/fz.md)

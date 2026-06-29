@@ -62,4 +62,4 @@ AIRBNB_IGNORE_ROBOTS=false
 
 ## Travel Skill 用法
 
-只有当用户偏好民宿、公寓、villa、家庭住宿、长住、厨房/洗衣或本地街区住宿时，优先使用 Airbnb。普通酒店偏好应先用 FlyAI/飞猪酒店搜索。
+只有当用户偏好民宿、公寓、villa、家庭住宿、长住、厨房/洗衣或本地街区住宿时，优先使用 Airbnb。普通海外酒店优先用 Booking；国内/中文市场酒店优先用 FlyAI/飞猪。

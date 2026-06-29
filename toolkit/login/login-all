@@ -21,6 +21,13 @@ printf '\n== Airbnb MCP ==\n'
 printf '\n== Booking.com MCP ==\n'
 "$ROOT/toolkit/booking/booking-mcp-list" || true
 
+printf '\n== Google Maps / Monitoring login ==\n'
+if [ -x "$ROOT/toolkit/google/google-login" ]; then
+  "$ROOT/toolkit/google/google-login" || true
+else
+  printf 'toolkit/google/google-login missing\n'
+fi
+
 printf '\n== Xiaohongshu login ==\n'
 if ss -ltn 2>/dev/null | grep -q ':18060'; then
   "$ROOT/toolkit/xhs/xhs-login-watch"

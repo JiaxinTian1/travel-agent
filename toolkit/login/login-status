@@ -30,3 +30,10 @@ if [ -x "$ROOT/toolkit/booking/booking-mcp-list" ]; then
 else
   printf 'toolkit/booking/booking-mcp-list missing\n'
 fi
+
+printf '\n== Google Maps / Monitoring ==\n'
+if [ -x "$ROOT/toolkit/google/google-usage" ]; then
+  "$ROOT/toolkit/google/google-usage" || true
+else
+  printf 'toolkit/google/google-usage missing\n'
+fi

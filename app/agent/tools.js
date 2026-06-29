@@ -5,8 +5,8 @@ const airbnb = require("../toolkit/airbnb");
 const fz = require("../toolkit/fz");
 const memoryStore = require("./memoryStore");
 const amap = require("../toolkit/amap");
+const google = require("../toolkit/google");
 const mapbox = require("../toolkit/mapbox");
-const ors = require("../toolkit/ors");
 const xhs = require("../toolkit/xhs");
 
 const toolDefinitions = [
@@ -154,15 +154,9 @@ async function executeTool(name, args) {
     case "search_social_reviews":
       return xhs.searchSocialReviews(args);
     case "route_places":
-      if (isChinaRoute(args.points) && amap.enabled()) return amap.routePlaces(args);
-      if (mapbox.enabled()) return mapbox.routePlaces(args);
-      if (amap.enabled()) return amap.routePlaces(args);
-      return ors.routePlaces(args);
+      return routeWithProviders(args);
     case "search_nearby_places":
-      if (isChinaPoint(args.center) && amap.enabled()) return amap.searchNearby(args);
-      if (mapbox.enabled()) return mapbox.searchNearby(args);
-      if (amap.enabled()) return amap.searchNearby(args);
-      return { ok: false, source: "map-search-fallback", items: [], error: "No map POI provider configured." };
+      return searchNearbyWithProviders(args);
     default:
       throw new Error(`unknown agent tool: ${name}`);
   }
@@ -172,6 +166,34 @@ module.exports = {
   executeTool,
   toolDefinitions
 };
+
+async function routeWithProviders(args = {}) {
+  const providers = isChinaRoute(args.points)
+    ? [amap, mapbox, google]
+    : [google, mapbox, amap];
+  let fallback = null;
+  for (const provider of providers) {
+    if (typeof provider.enabled === "function" && !provider.enabled()) continue;
+    const result = await provider.routePlaces(args);
+    if (result?.ok && result.data?.geometry) return result;
+    fallback = result || fallback;
+  }
+  return fallback || { ok: false, source: "route-fallback", data: null, error: "No route provider configured." };
+}
+
+async function searchNearbyWithProviders(args = {}) {
+  const providers = isChinaPoint(args.center)
+    ? [amap, mapbox, google]
+    : [google, mapbox, amap];
+  let fallback = null;
+  for (const provider of providers) {
+    if (typeof provider.enabled === "function" && !provider.enabled()) continue;
+    const result = await provider.searchNearby(args);
+    if (result?.items?.length) return result;
+    fallback = result || fallback;
+  }
+  return fallback || { ok: false, source: "map-search-fallback", items: [], error: "No map POI provider configured." };
+}
 
 function isChinaRoute(points = []) {
   const usable = (Array.isArray(points) ? points : []).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lng));

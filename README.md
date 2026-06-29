@@ -8,33 +8,30 @@
   <a href="docs/index.html"><strong>Docs</strong></a>
 </p>
 
-Travel Agent is an agent-driven travel planning workspace. It helps a trip organizer move from "where should we go?" to an editable route board with candidate destinations, planner tabs, lodging/food/place recommendations, and route visualization.
+Travel Agent is a local-first, agent-driven travel planning workspace. It helps a trip organizer move from open-ended destination research to editable itinerary boards with live recommendations and route maps.
 
-## What It Does 🌍
+## Highlights 🌍
 
-- **Destination research**: compare possible destinations when the trip is still open.
-- **Personalized planning**: use editable query and memory files to reflect user preferences, visited places, lodging style, flight constraints, and budget signals.
-- **Planner boards**: generate one planner per selected destination and keep multiple plans editable.
-- **Drag-and-drop itinerary**: organize flights, hotels, restaurants, and attractions into a 2-hour schedule grid.
-- **Agent tools**: connect model-driven decisions to Booking, Airbnb, Xiaohongshu, FlyAI/Fliggy, Mapbox, AMap/Gaode, and OpenRouteService wrappers.
-- **Route view**: show Mapbox or AMap/Gaode map backgrounds when configured, with OpenRouteService and SVG route-diagram fallbacks.
-- **Codex-ready skill**: includes a thin `travel-agent` skill so Codex can operate the app through the server API.
+- **Researcher tab**: compare candidate destinations with detail and score tables.
+- **Planner tabs**: create one editable board per selected destination.
+- **Personalization**: combine the current `workspace/query.md` with durable memory in `app/agent/memory.md`.
+- **Live toolchain**: use Booking, Airbnb, Xiaohongshu, FlyAI/Fliggy, Google Maps, Mapbox, and AMap/Gaode through local wrappers.
+- **Editable itinerary**: drag restaurants, hotels, attractions, and airports into a 2-hour schedule grid.
+- **Route map**: calculate segments with Google/Mapbox/Gaode and render map routes with transport choices.
+- **Codex-ready**: bundled skills let Codex operate the app through the local server API.
 
-## Why It Is Different 🧭
+## Screenshots 🖼️
 
-Most travel planners stop at text. This project keeps the plan as editable state:
+Current product screenshots:
 
-- `query` is the current trip request.
-- `memory` is durable user preference.
-- `researcher` chooses destinations.
-- `planner` turns a selected destination into an editable board.
-- the app state can be used by both the web UI and Codex.
+| Researcher | Planner Table | Route Map |
+|---|---|---|
+| ![Researcher screenshot](docs/assets/screenshots/researcher.png) | ![Planner table screenshot](docs/assets/screenshots/planner-table.png) | ![Route map screenshot](docs/assets/screenshots/planner-map.png) |
 
 ## Start 🚀
 
-From the repository root:
-
 ```bash
+cd /home/snowbolwer/travel-agent
 node app/server.js
 ```
 
@@ -48,33 +45,37 @@ Optional setup:
 
 ```bash
 cp app/.env.example app/.env
+./install.sh --doctor
 ```
 
-Fill `app/.env` if you want model calls, Mapbox maps, AMap/Gaode maps, OpenRouteService routes, or toolkit-specific keys.
-
-## Install Helpers 🛠️
-
-Optional live-data dependencies can be checked or installed with:
+For Google Maps usage monitoring:
 
 ```bash
-./install.sh
-./install.sh --doctor
+./install.sh --install-gcloud
+./toolkit/google/google-login
+./toolkit/google/google-usage
 ```
 
 ## Project Shape 📁
 
 ```text
-app/        web UI, local server, agent runner, toolkit functions
-skills/     Codex skills for operating the travel workflow
-toolkit/    external data wrappers
-workspace/  editable query, local state, generated outputs
-docs/       extra documentation
+app/        web UI, local server, agent runner, schemas, toolkit adapters
+skills/     Codex skills: researcher, planner, travel-agent
+toolkit/    shell wrappers for external data providers
+workspace/  editable query and local runtime state
+docs/       English/Chinese documentation and image assets
 ```
+
+## Docs 📚
+
+- [English docs](docs/en/README.md)
+- [中文文档](docs/zh/README.md)
+- [Docs home](docs/index.html)
 
 ## Status 🧪
 
-This is an active local-first prototype. The main product path is:
+This is an active prototype. Runtime state and generated outputs are local and should not be committed. The main product path is:
 
 ```text
-query + memory -> researcher -> planner -> editable itinerary -> route view
+query + memory -> researcher -> planner -> editable itinerary -> route map
 ```

@@ -3,12 +3,19 @@
 const modelRunner = require("./modelRunner");
 const memoryStore = require("./memoryStore");
 const amap = require("../toolkit/amap");
+const google = require("../toolkit/google");
 const mapbox = require("../toolkit/mapbox");
-const ors = require("../toolkit/ors");
 const booking = require("../toolkit/booking");
 const airbnb = require("../toolkit/airbnb");
 const fz = require("../toolkit/fz");
 const xhs = require("../toolkit/xhs");
+const {
+  mappablePlaces,
+  normalizeAirbnbResult,
+  normalizeBookingResult,
+  normalizeMapResult,
+  toCandidatePoint
+} = require("./placeNormalizer");
 
 const typeLabels = {
   restaurant: "餐厅",
@@ -20,21 +27,23 @@ const typeLabels = {
 const tripDates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
 const timeBlocks = ["06:00-08:00", "08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00", "18:00-20:00", "20:00-22:00", "22:00-24:00"];
 
-const recommendationPools = {
+const recommendationCategories = new Set(["restaurants", "hotels", "attractions", "flights"]);
+
+const fallbackJitter = {
   restaurants: [
-    ["Barbarestan", "restaurant", 41.7081, 44.8017, "传统格鲁吉亚菜｜适合正式晚餐"],
-    ["Keto and Kote", "restaurant", 41.7029, 44.7934, "山坡餐厅｜本地菜"],
-    ["Culinarium Khasheria", "restaurant", 41.6896, 44.8088, "老城附近｜创意格鲁吉亚菜"]
+    [0.0018, 0.0024, "当地餐厅备选｜需进一步核对营业时间"],
+    [-0.0021, 0.0016, "区域餐厅备选｜适合按路线微调"],
+    [0.0012, -0.0022, "特色餐饮区域｜建议结合地图复核"]
   ],
   hotels: [
-    ["Communal Hotel Sololaki", "hotel", 41.6928, 44.7996, "Sololaki 区｜步行友好"],
-    ["The House Hotel Old Tbilisi", "hotel", 41.6907, 44.8104, "老城｜适合短住"],
-    ["Tbilisi View Hotel", "hotel", 41.7012, 44.7938, "Vera/Mtatsminda 一带｜视野好"]
+    [0.0012, 0.0012, "住宿区域备选｜需进一步核对价格"],
+    [-0.0014, 0.001, "住宿区域备选｜适合做路线基地"],
+    [0.0008, -0.0015, "住宿区域备选｜建议结合 Booking/Airbnb 复核"]
   ],
   attractions: [
-    ["Mtatsminda Park", "attraction", 41.6959, 44.7856, "城市高点｜日落备选"],
-    ["Dry Bridge Market", "attraction", 41.7035, 44.8012, "跳蚤市场｜适合轻松逛"],
-    ["Mtskheta Old Town", "attraction", 41.8452, 44.7209, "古都小镇｜可和 Jvari 串联"]
+    [0.002, 0.0015, "景点区域备选｜需进一步核对开放信息"],
+    [-0.0015, 0.002, "周边景点备选｜适合按路线串联"],
+    [0.001, -0.002, "景点区域备选｜建议结合地图复核"]
   ],
   flights: []
 };
@@ -45,6 +54,51 @@ function stablePlannerId(destination) {
 
 function point(id, name, type, lat, lng, note, source = "agent-runner") {
   return { id, name, type, lat, lng, note, source, confidence: "medium" };
+}
+
+function distanceMeters(a, b) {
+  if (!Number.isFinite(a?.lat) || !Number.isFinite(a?.lng) || !Number.isFinite(b?.lat) || !Number.isFinite(b?.lng)) return Infinity;
+  const radius = 6371000;
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const value = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * radius * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+function routeLocationId(item) {
+  return item?.itemId || item?.id || "";
+}
+
+function coordinatesNear(a, b, tolerance = 0.00005) {
+  return Number.isFinite(a?.lat)
+    && Number.isFinite(a?.lng)
+    && Number.isFinite(b?.lat)
+    && Number.isFinite(b?.lng)
+    && Math.abs(a.lat - b.lat) <= tolerance
+    && Math.abs(a.lng - b.lng) <= tolerance;
+}
+
+function sameRouteLocation(a, b) {
+  const aId = routeLocationId(a);
+  const bId = routeLocationId(b);
+  if (aId && bId && aId === bId) return true;
+  return coordinatesNear(a, b);
+}
+
+function compactScheduledPoints(points) {
+  const compacted = [];
+  for (const entry of points) {
+    const last = compacted[compacted.length - 1];
+    if (last && sameRouteLocation(last.item, entry.item)) {
+      last.endSlot = entry.slot;
+      last.slots.push(entry.slot);
+      continue;
+    }
+    compacted.push({ ...entry, endSlot: entry.slot, slots: [entry.slot] });
+  }
+  return compacted;
 }
 
 function destination(id, name, score, rank, detail, scores, seed, evidence = {}) {
@@ -509,6 +563,7 @@ function createPlanner(state, destinationKey) {
   }
   const existing = plannerForDestination(state, destination);
   if (existing) {
+    ensurePlannerPlaceCoordinates(existing);
     openPlanner(state, existing.id);
     state.activeTab = existing.id;
     return { state, planner: existing, created: false };
@@ -540,6 +595,7 @@ function makePlanner(destination) {
     route: null
   };
   prefillPlanner(planner);
+  ensurePlannerPlaceCoordinates(planner);
   return planner;
 }
 
@@ -560,7 +616,7 @@ function destinationDefaults(destination) {
       flight: { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206 },
       restaurant: { name: "Shkoder old town restaurant area", lat: 42.0686, lng: 19.5126 },
       hotel: { name: "Theth village guesthouse area", lat: 42.3959, lng: 19.7745 },
-      attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 },
+      attraction: { name: "Theth / Valbona mountain route", lat: 42.4309, lng: 19.8496 },
       airports: [
         { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206, note: "阿尔巴尼亚主机场｜TIA" },
         { name: "Kukes International Airport", lat: 42.0337, lng: 20.4159, note: "北部备选机场｜KFZ" }
@@ -595,6 +651,55 @@ function destinationDefaults(destination) {
     hotel: { name: "核心住宿区域待选", lat: 41.7151, lng: 44.8271 },
     attraction: { name: destination.name, lat: 41.7151, lng: 44.8271 }
   };
+}
+
+function knownCoordinateCorrections(planner) {
+  if (planner.destinationId !== "albania-accursed-mountains") return [];
+  return [
+    {
+      id: "a1",
+      namePattern: /theth\s*\/\s*valbona|valbona mountain|valbona pass|mountain route/i,
+      old: { lat: 42.3959, lng: 19.7745 },
+      lat: 42.4309,
+      lng: 19.8496,
+      note: "Theth / Valbona 山线区域｜Valbona Pass 一带"
+    }
+  ];
+}
+
+function matchesCoordinateCorrection(item, correction) {
+  if (!item) return false;
+  const id = routeLocationId(item);
+  if (id && id === correction.id) return true;
+  return correction.namePattern.test(String(item.name || ""));
+}
+
+function shouldApplyCoordinateCorrection(item, correction) {
+  if (coordinatesNear(item, correction)) return false;
+  if (correction.old && coordinatesNear(item, correction.old)) return true;
+  const source = String(item.source || "");
+  const note = String(item.note || "");
+  return ["agent-runner", "sample"].includes(source) || /占位|待查|核心景点/.test(note);
+}
+
+function ensurePlannerPlaceCoordinates(planner) {
+  const corrections = knownCoordinateCorrections(planner);
+  if (!corrections.length) return false;
+  let changed = false;
+  const applyCorrection = item => {
+    const correction = corrections.find(candidate => matchesCoordinateCorrection(item, candidate));
+    if (!correction || !shouldApplyCoordinateCorrection(item, correction)) return;
+    item.lat = correction.lat;
+    item.lng = correction.lng;
+    if (!item.note || /占位|待查|核心景点/.test(item.note)) item.note = correction.note;
+    else if (!String(item.note).includes("山线区域")) item.note = `${item.note}｜坐标修正为山线区域`;
+    changed = true;
+  };
+  Object.values(planner.candidates || {}).flat().forEach(applyCorrection);
+  Object.values(planner.itinerary || {}).forEach(applyCorrection);
+  (planner.staging || []).forEach(applyCorrection);
+  if (changed) planner.updatedAt = new Date().toISOString();
+  return changed;
 }
 
 function georgiaCandidates() {
@@ -663,18 +768,22 @@ async function recommendPlace(state, plannerId, category, options = {}) {
     error.statusCode = 404;
     throw error;
   }
-  if (!recommendationPools[category] || !planner.candidates[category]) {
+  if (!recommendationCategories.has(category) || !planner.candidates[category]) {
     const error = new Error("unknown category");
     error.statusCode = 400;
     throw error;
   }
+  ensurePlannerPlaceCoordinates(planner);
   let item = null;
   try {
-    item = await recommendFromMap(planner, category, prompt);
+    item = category === "hotels"
+      ? await recommendFromLodgingProviders(planner, prompt)
+      : await recommendFromMap(planner, category, prompt);
+    if (!item) item = await recommendFromMap(planner, category, prompt);
   } catch (error) {
     planner.lastMapSearchError = error.message;
   }
-  if (modelRunner.isEnabled()) {
+  if (!item && modelRunner.isEnabled()) {
     try {
       const suggested = await modelRunner.recommendPlaceWithModel({
         planner,
@@ -683,7 +792,7 @@ async function recommendPlace(state, plannerId, category, options = {}) {
         memory: await memoryStore.readMemory()
       });
       if (suggested?.name && suggested?.type && Number.isFinite(Number(suggested.lat)) && Number.isFinite(Number(suggested.lng))) {
-        item = point(
+        const candidate = point(
           `${suggested.type}_${Date.now()}`,
           suggested.name,
           suggested.type,
@@ -692,20 +801,368 @@ async function recommendPlace(state, plannerId, category, options = {}) {
           suggested.note || prompt || "按当前行程推荐",
           "llm-agent"
         );
+        if (isReasonableRecommendation(planner, candidate, category)) item = candidate;
+        else planner.lastAgentError = `LLM 推荐坐标偏离当前 planner：${candidate.name}`;
       }
     } catch (error) {
       planner.lastAgentError = error.message;
     }
   }
   if (!item) {
-    const pool = recommendationPools[category];
-    const offset = planner.candidates[category].length % pool.length;
-    const [name, type, lat, lng, note] = pool[offset];
-    item = point(`${type}_${Date.now()}`, name, type, lat, lng, prompt ? `${note}｜${prompt}` : note);
+    item = destinationFallbackRecommendation(planner, category, prompt);
   }
   planner.candidates[category].push(item);
   planner.updatedAt = new Date().toISOString();
   return { state, planner, item };
+}
+
+function isReasonableRecommendation(planner, item, category) {
+  if (!Number.isFinite(item?.lat) || !Number.isFinite(item?.lng)) return false;
+  const anchors = [
+    ...Object.values(planner.itinerary || {}),
+    ...Object.values(planner.candidates || {}).flat()
+  ].filter(anchor => anchor?.type !== "flight" && Number.isFinite(anchor?.lat) && Number.isFinite(anchor?.lng));
+  if (!anchors.length) return true;
+  const nearest = Math.min(...anchors.map(anchor => distanceMeters(anchor, item)));
+  const threshold = category === "attractions" ? 250000 : 90000;
+  return nearest <= threshold;
+}
+
+function destinationFallbackRecommendation(planner, category, prompt = "") {
+  const defaults = destinationDefaults({ id: planner.destinationId, name: planner.destinationName });
+  const base = defaults[category === "restaurants" ? "restaurant" : category === "hotels" ? "hotel" : category === "attractions" ? "attraction" : "flight"];
+  const type = categoryType(category);
+  const existingCount = planner.candidates?.[category]?.length || 0;
+  const variants = fallbackJitter[category] || [];
+  const variant = variants[existingCount % Math.max(1, variants.length)] || [0, 0, "目的地备选｜需进一步核对"];
+  const baseName = base?.name || `${planner.destinationName} ${typeLabels[type]}备选`;
+  const suffix = existingCount > 0 ? ` #${existingCount + 1}` : "";
+  const note = [variant[2], prompt].filter(Boolean).join("｜");
+  return point(
+    `${type}_${Date.now()}`,
+    `${baseName}${suffix}`,
+    type,
+    Number(base?.lat) + variant[0],
+    Number(base?.lng) + variant[1],
+    note,
+    "agent-runner-fallback"
+  );
+}
+
+async function recommendFromLodgingProviders(planner, prompt = "") {
+  const context = lodgingSearchContext(planner, prompt);
+  const prefersHomestay = /民宿|airbnb|homestay|bnb|apartment|公寓|木屋|villa|别墅/i.test(prompt);
+  const providers = prefersHomestay ? ["airbnb", "booking"] : ["booking", "airbnb"];
+  const existing = new Set(Object.values(planner.candidates || {}).flat().map(candidate => candidate.name));
+  const errors = [];
+  for (const provider of providers) {
+    try {
+      const timeoutMs = provider === "booking"
+        ? Number(process.env.PLANNER_BOOKING_TIMEOUT || 25000)
+        : Number(process.env.PLANNER_AIRBNB_TIMEOUT || 25000);
+      const result = provider === "booking"
+        ? await withTimeout(booking.searchHotels({
+          destination: context.destination,
+          checkIn: context.checkIn,
+          checkOut: context.checkOut,
+          adults: context.adults,
+          rooms: 1,
+          timeoutMs
+        }), timeoutMs + 1000)
+        : await withTimeout(airbnb.searchHomestays({
+          location: context.destination,
+          checkIn: context.checkIn,
+          checkOut: context.checkOut,
+          adults: context.adults,
+          timeoutMs
+        }), timeoutMs + 1000);
+      let places = provider === "booking"
+        ? normalizeBookingResult(result, context)
+        : normalizeAirbnbResult(result, context);
+      if (provider === "booking") places = await geocodeUnmappedPlaces(places, context);
+      rememberUnmappedPlaces(planner, "hotels", places.filter(place => !place.isMappable));
+      const found = mappablePlaces(places).find(place => !existing.has(place.name));
+      if (found) return toCandidatePoint(found, "hotel");
+    } catch (error) {
+      errors.push(`${provider}: ${error.message || error}`);
+    }
+  }
+  if (errors.length) planner.lastLodgingProviderError = errors.join(" | ");
+  return null;
+}
+
+async function geocodeUnmappedPlaces(places, context = {}) {
+  if (!google.enabled()) return places;
+  const resolved = [];
+  for (const place of places.slice(0, 5)) {
+    if (place.isMappable) {
+      resolved.push(place);
+      continue;
+    }
+    const query = place.geocodingQuery || [place.name, context.destination].filter(Boolean).join(", ");
+    const result = await google.geocode({ address: query, category: place.category || "hotels" });
+    const item = result?.items?.find(row => row.featureType === "poi");
+    if (item && Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
+      resolved.push({
+        ...place,
+        lat: item.lat,
+        lng: item.lng,
+        note: [place.note, `Google geocode: ${item.note || item.name}`].filter(Boolean).join("｜"),
+        confidence: item.featureType === "poi" ? "high" : "medium",
+        geocodingStatus: item.featureType === "poi" ? "google-poi" : "google-geocode",
+        isMappable: true,
+        source: place.source || "booking",
+        provider: place.provider || "booking"
+      });
+    } else {
+      resolved.push(place);
+    }
+  }
+  return [...resolved, ...places.slice(5)];
+}
+
+function lodgingSearchContext(planner, prompt = "") {
+  const range = plannerDateRange(planner);
+  return {
+    destination: lodgingDestination(planner, prompt),
+    checkIn: range.checkIn,
+    checkOut: range.checkOut,
+    adults: Number(process.env.PLANNER_ADULTS || 2)
+  };
+}
+
+function lodgingDestination(planner, prompt = "") {
+  const cleanPrompt = String(prompt || "").trim();
+  if (cleanPrompt) return cleanPrompt;
+  const center = recommendationCenter(planner);
+  const centerName = center?.name
+    ? String(center.name).replace(/\b(old town|restaurant|hotel|guesthouse|area|route)\b/gi, "").replace(/\s+/g, " ").trim()
+    : "";
+  return [centerName, planner.destinationName].filter(Boolean).join(" ");
+}
+
+function plannerDateRange(planner) {
+  const dates = Object.keys(planner.itinerary || {})
+    .map(slot => String(slot).split("|")[0])
+    .map(dateLabelToDate)
+    .filter(Boolean)
+    .sort((a, b) => a.getTime() - b.getTime());
+  const checkInDate = dates[0] || new Date(Date.UTC(new Date().getFullYear(), 8, 25));
+  const checkOutDate = new Date((dates[dates.length - 1] || checkInDate).getTime());
+  checkOutDate.setUTCDate(checkOutDate.getUTCDate() + 1);
+  return {
+    checkIn: isoDate(checkInDate),
+    checkOut: isoDate(checkOutDate)
+  };
+}
+
+function dateLabelToDate(label) {
+  const match = String(label || "").match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (!match) return null;
+  const year = Number(process.env.TRAVEL_YEAR || new Date().getFullYear());
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  if (!Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function rememberUnmappedPlaces(planner, category, places) {
+  const compact = places
+    .filter(place => place?.name)
+    .map(place => ({
+      id: place.id,
+      name: place.name,
+      type: place.type,
+      category,
+      provider: place.provider,
+      source: place.source,
+      note: place.note,
+      url: place.url,
+      geocodingStatus: place.geocodingStatus,
+      geocodingQuery: place.geocodingQuery,
+      isMappable: false
+    }));
+  if (!compact.length) return;
+  planner.unmappedCandidates = planner.unmappedCandidates || {};
+  const existing = new Map((planner.unmappedCandidates[category] || []).map(place => [`${place.provider}:${place.id || place.name}`, place]));
+  compact.forEach(place => existing.set(`${place.provider}:${place.id || place.name}`, place));
+  planner.unmappedCandidates[category] = [...existing.values()].slice(-20);
+}
+
+async function importPlaceToStaging(state, plannerId, input) {
+  const planner = state.planners.find(item => item.id === plannerId);
+  if (!planner) {
+    const error = new Error("planner not found");
+    error.statusCode = 404;
+    throw error;
+  }
+  const query = String(input?.query || input?.text || input?.place || "").trim();
+  if (!query) {
+    const error = new Error("place query is required");
+    error.statusCode = 400;
+    throw error;
+  }
+  ensurePlannerPlaceCoordinates(planner);
+  const preferredCategory = normalizeCategory(input?.category || inferPlaceCategory(query));
+  const expandedUrl = await expandMapUrl(query);
+  const coordinateSource = [query, expandedUrl].filter(Boolean).join("\n");
+  const coordinates = coordinatesFromText(coordinateSource);
+  if (coordinates) {
+    const type = categoryType(preferredCategory);
+    const importedName = cleanupImportedPlaceName(expandedUrl || query) || "用户导入地点";
+    const item = point(
+      `${type}_${Date.now()}`,
+      importedName,
+      type,
+      coordinates.lat,
+      coordinates.lng,
+      expandedUrl ? "用户导入｜Google Maps 短链解析坐标" : "用户导入｜Google Maps 坐标",
+      "manual-import"
+    );
+    const staged = {
+      ...item,
+      instanceId: `${item.id}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      itemId: item.id
+    };
+    planner.staging = planner.staging || [];
+    planner.staging.push(staged);
+    planner.updatedAt = new Date().toISOString();
+    return { state, planner, item: staged, source: "manual-import" };
+  }
+  let result = null;
+  const searchQuery = cleanupImportedPlaceName(expandedUrl || query);
+  if (google.enabled()) {
+    result = await google.searchPlaces({
+      query: searchQuery === "用户导入地点" ? query : searchQuery,
+      category: preferredCategory,
+      destination: planner.destinationName,
+      language: "zh-CN",
+      limit: 8
+    });
+  }
+  if ((!result?.items?.length) && mapbox.enabled()) {
+    result = await mapbox.searchText({
+      query: searchQuery === "用户导入地点" ? query : searchQuery,
+      category: preferredCategory,
+      destination: planner.destinationName,
+      language: "zh",
+      limit: 8
+    });
+  }
+  const found = (result?.items || [])[0];
+  if (found && found.featureType !== "poi" && ["restaurants", "hotels", "attractions"].includes(preferredCategory)) {
+    const error = new Error("地图服务只找到了城市/地址，没有命中具体地点；请粘贴带坐标的 Google Maps 链接，或补充更完整的店名和城市。");
+    error.statusCode = 404;
+    throw error;
+  }
+  const type = found?.type || categoryType(preferredCategory);
+  const item = point(
+    `${type}_${Date.now()}`,
+    found?.name || query,
+    type,
+    Number(found?.lat),
+    Number(found?.lng),
+    found?.note ? `${found.note}｜${result.source}` : `用户导入｜${result?.source || "待验证坐标"}`,
+    result?.source || "manual-import"
+  );
+  if (!Number.isFinite(item.lat) || !Number.isFinite(item.lng)) {
+    const error = new Error(result?.error || "Mapbox 未找到可用坐标");
+    error.statusCode = 404;
+    throw error;
+  }
+  const staged = {
+    ...item,
+    instanceId: `${item.id}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    itemId: item.id
+  };
+  planner.staging = planner.staging || [];
+  planner.staging.push(staged);
+  planner.updatedAt = new Date().toISOString();
+  return { state, planner, item: staged, source: result?.source || "manual-import" };
+}
+
+async function expandMapUrl(value) {
+  const raw = String(value || "").trim();
+  if (!/^https?:\/\//i.test(raw) || !/(maps\.app\.goo\.gl|goo\.gl\/maps|google\.[^/]+\/maps|maps\.google\.[^/]+)/i.test(raw)) return "";
+  let current = raw;
+  for (let index = 0; index < 4; index += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let response;
+    try {
+      response = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        headers: { "user-agent": "Mozilla/5.0 travel-agent" },
+        signal: controller.signal
+      });
+    } catch (_) {
+      return current === raw ? "" : current;
+    } finally {
+      clearTimeout(timeout);
+    }
+    const location = response.headers.get("location");
+    if (!location) return response.url && response.url !== raw ? response.url : current;
+    current = new URL(location, current).toString();
+    if (coordinatesFromText(current)) return current;
+  }
+  return current === raw ? "" : current;
+}
+
+function coordinatesFromText(value) {
+  const text = String(value || "");
+  const patterns = [
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /(?:lat|latitude)[=:]\s*(-?\d+(?:\.\d+)?)[,&\s]+(?:lng|lon|longitude)[=:]\s*(-?\d+(?:\.\d+)?)/i
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const lat = Number(match[1]);
+    const lng = Number(match[2]);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  }
+  return null;
+}
+
+function cleanupImportedPlaceName(value) {
+  const text = String(value || "").trim();
+  if (!/^https?:\/\//i.test(text)) return text.slice(0, 80);
+  try {
+    const url = new URL(text);
+    const path = decodeURIComponent(url.pathname || "");
+    const match = path.match(/\/place\/([^/]+)/);
+    if (match?.[1]) return match[1].replace(/\+/g, " ").slice(0, 80);
+  } catch (_) {}
+  return "用户导入地点";
+}
+
+function inferPlaceCategory(query) {
+  const text = String(query || "").toLowerCase();
+  if (/餐厅|饭店|咖啡|酒吧|restaurant|cafe|bar|bistro|food|dining/.test(text)) return "restaurants";
+  if (/酒店|住宿|hotel|hostel|guesthouse|resort|bnb|airbnb/.test(text)) return "hotels";
+  if (/机场|airport|terminal/.test(text)) return "flights";
+  return "attractions";
+}
+
+function normalizeCategory(category) {
+  const text = String(category || "").toLowerCase();
+  if (["restaurants", "restaurant", "food"].includes(text)) return "restaurants";
+  if (["hotels", "hotel", "lodging", "homestays"].includes(text)) return "hotels";
+  if (["flights", "flight", "airport"].includes(text)) return "flights";
+  return "attractions";
+}
+
+function categoryType(category) {
+  if (category === "restaurants") return "restaurant";
+  if (category === "hotels") return "hotel";
+  if (category === "flights") return "flight";
+  return "attraction";
 }
 
 async function recommendFromMap(planner, category, prompt = "") {
@@ -719,27 +1176,22 @@ async function recommendFromMap(planner, category, prompt = "") {
     keyword: prompt,
     limit: 8,
     radiusMeters: 5000,
-    language: "zh"
+    language: "zh",
+    strictLocation: true
   };
-  const result = domestic && amap.enabled()
-    ? await amap.searchNearby(searchArgs)
-    : mapbox.enabled()
-      ? await mapbox.searchNearby(searchArgs)
-      : amap.enabled()
-        ? await amap.searchNearby(searchArgs)
-        : null;
+  const providers = domestic
+    ? [["amap", amap], ["mapbox", mapbox]]
+    : [["google", google], ["mapbox", mapbox], ["amap", amap]];
   const existing = new Set(Object.values(planner.candidates).flat().map(candidate => candidate.name));
-  const found = (result?.items || []).find(candidate => !existing.has(candidate.name));
-  if (!found) return null;
-  return point(
-    `${found.type}_${Date.now()}`,
-    found.name,
-    found.type,
-    found.lat,
-    found.lng,
-    `${found.note || "地图 POI 推荐"}｜${result.source}`,
-    result.source
-  );
+  for (const [, provider] of providers) {
+    if (typeof provider.enabled === "function" && !provider.enabled()) continue;
+    const result = await provider.searchNearby(searchArgs);
+    const found = mappablePlaces(normalizeMapResult(result, category))
+      .filter(candidate => distanceMeters(center, candidate) <= searchArgs.radiusMeters)
+      .find(candidate => !existing.has(candidate.name));
+    if (found) return toCandidatePoint(found, found.type);
+  }
+  return null;
 }
 
 function recommendationCenter(planner) {
@@ -761,15 +1213,25 @@ async function calculateRoute(state, plannerId, options = {}) {
     error.statusCode = 404;
     throw error;
   }
+  ensurePlannerPlaceCoordinates(planner);
   const points = Object.entries(planner.itinerary)
     .map(([slot, item]) => ({ slot, item }))
     .filter(({ item }) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
     .sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
-  const routePoints = points.map(({ slot, item }) => ({ slot, name: item.name, type: item.type, lat: item.lat, lng: item.lng }));
+  const routeEntries = compactScheduledPoints(points);
+  const routePoints = routeEntries.map(({ slot, endSlot, slots, item }) => ({
+    slot,
+    endSlot,
+    slots,
+    name: item.name,
+    type: item.type,
+    lat: item.lat,
+    lng: item.lng
+  }));
   const domestic = isChinaPlanner(planner, routePoints);
   const defaultMode = normalizeRouteMode(options.mode || planner.routeMode || "driving", domestic);
   const segmentModes = { ...(planner.routeSegmentModes || {}), ...(options.segmentModes || {}) };
-  const mixedRoute = await calculateMixedRoute({ points, routePoints, defaultMode, domestic, segmentModes });
+  const mixedRoute = await calculateMixedRoute({ points: routeEntries, routePoints, defaultMode, domestic, segmentModes });
   if (mixedRoute?.segments?.length) {
     planner.route = {
       updatedAt: new Date().toISOString(),
@@ -804,7 +1266,7 @@ async function calculateRoute(state, plannerId, options = {}) {
           updatedAt: new Date().toISOString(),
           pointCount: Number(route.pointCount || route.line.length),
           line: route.line,
-          summary: `${route.summary}（Mapbox/高德/ORS 不可用，LLM 摘要）`,
+          summary: `${route.summary}（Google/Mapbox/高德不可用，LLM 摘要）`,
           source: "llm-agent",
           mode: defaultMode,
           providerPreference: domestic ? "china-domestic" : "global",
@@ -819,9 +1281,9 @@ async function calculateRoute(state, plannerId, options = {}) {
   }
   planner.route = {
     updatedAt: new Date().toISOString(),
-    pointCount: points.length,
+    pointCount: routePoints.length,
     line: routePoints,
-    summary: `${points.length} 个已排程点位；下一步可接 OpenRouteService 替换为真实路网路线。`,
+    summary: `${routePoints.length} 个路线点；连续相同地点已合并。`,
     source: "agent-runner-fallback",
     mode: defaultMode
   };
@@ -898,8 +1360,8 @@ async function mapSegment({ from, to, index, key, mode, domestic }) {
     };
   }
   const providers = domestic
-    ? [["amap", amap], ["mapbox", mapbox], ["ors", ors]]
-    : [["mapbox", mapbox], ["ors", ors], ["amap", amap]];
+    ? [["amap", amap], ["mapbox", mapbox]]
+    : [["google", google], ["mapbox", mapbox], ["amap", amap]];
   const errors = [];
   for (const [name, provider] of providers) {
     let result;
@@ -1037,6 +1499,7 @@ module.exports = {
   calculateRoute,
   isModelEnabled: modelRunner.isEnabled,
   recommendPlace,
+  importPlaceToStaging,
   rerollResearch,
   stablePlannerId,
   typeLabels

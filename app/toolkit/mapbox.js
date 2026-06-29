@@ -185,9 +185,9 @@ async function forwardSearch(params, center, limit) {
     access_token: token,
     q: queryText || queryForCategory(params.category),
     language: params.language || "zh",
-    limit: String(limit),
-    proximity: `${center.lng},${center.lat}`
+    limit: String(limit)
   });
+  if (center && Number.isFinite(center.lat) && Number.isFinite(center.lng)) query.set("proximity", `${center.lng},${center.lat}`);
   let response;
   try {
     response = await fetch(`https://api.mapbox.com/search/searchbox/v1/forward?${query.toString()}`);
@@ -202,10 +202,24 @@ async function forwardSearch(params, center, limit) {
   if (!response.ok || !Array.isArray(data?.features)) {
     return { ok: false, source: "mapbox-fallback", items: [], error: data?.message || `HTTP ${response.status}` };
   }
-  const items = data.features
+  const normalized = data.features
     .map((feature, index) => normalizeFeature(feature, params.category, index))
-    .filter(item => item && item.featureType === "poi");
+    .filter(Boolean);
+  const poiItems = normalized.filter(item => item.featureType === "poi");
+  const items = poiItems.length ? poiItems : params.acceptAny ? normalized : [];
   return { ok: Boolean(items.length), source: "mapbox-search", category: "forward", items, rawText: text.slice(0, 20000), error: items.length ? null : "Mapbox forward search 未返回具体 POI。" };
+}
+
+async function searchText(params = {}) {
+  const limit = Math.max(1, Math.min(10, Number(params.limit || 5)));
+  const result = await forwardSearch({
+    keyword: params.query || params.keyword || params.place || "",
+    category: params.category || "",
+    destination: params.destination || "",
+    language: params.language || "zh",
+    acceptAny: true
+  }, params.center || null, limit);
+  return { ...result, source: result.ok ? "mapbox-text-search" : result.source };
 }
 
 function queryForCategory(category) {
@@ -258,5 +272,6 @@ function formatDuration(value) {
 module.exports = {
   enabled,
   routePlaces,
-  searchNearby
+  searchNearby,
+  searchText
 };

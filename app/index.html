@@ -214,6 +214,23 @@
       outline: 2px solid var(--accent-soft);
       border-color: var(--accent);
     }
+    .import-place-control {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 10px;
+    }
+    .import-place-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+    .import-place-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .import-place-actions .route-select { flex: 1 1 auto; min-width: 0; }
+    .import-place-actions .btn { flex: 0 0 auto; }
     .category-head .btn {
       flex: 0 0 auto;
       padding: 5px 8px;
@@ -409,6 +426,13 @@
       background: #fff;
       color: var(--muted);
       font-size: 12px;
+      cursor: default;
+    }
+    .segment-row:hover,
+    .segment-row.is-hovered {
+      border-color: #ef4444;
+      background: #fff1f2;
+      color: var(--text);
     }
     .segment-row > div:first-child,
     .segment-row > div:last-child {
@@ -492,6 +516,14 @@
       font-weight: 800;
       white-space: nowrap;
     }
+    .route-segment-line {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .14s ease;
+    }
+    .route-segment-line.is-active {
+      opacity: .92;
+    }
     .route-diagram {
       width: 100%;
       aspect-ratio: 3 / 2;
@@ -545,7 +577,7 @@
   <div class="shell">
     <header class="topbar">
       <div>
-        <h1>Travel Planner Board</h1>
+        <h1>Travel Agent Board</h1>
         <p>一个固定 researcher tab，多个可编辑 planner tab。数据保存到浏览器 localStorage。</p>
       </div>
       <div class="actions">
@@ -564,7 +596,8 @@
 
   <div class="toast" id="toast"></div>
   <script>
-    const STORAGE_KEY = "travel-planner-board-v1";
+    const STORAGE_KEY = "travel-agent-board-v1";
+    const LEGACY_STORAGE_KEY = "travel-planner-board-v1";
     const defaultDates = ["9/25", "9/26", "9/27", "9/28", "9/29", "9/30", "10/1", "10/2"];
     const timeBlocks = ["06:00-08:00", "08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-16:00", "16:00-18:00", "18:00-20:00", "20:00-22:00", "22:00-24:00"];
     const categories = [
@@ -585,12 +618,48 @@
     let mapboxPromise;
     let amapPromise;
     let map;
+    let routeHighlighter = () => {};
     let toastTimer;
     let researchPending = false;
+    const pendingImports = new Set();
     const pendingRecommendations = new Set();
 
     function point(id, name, type, lat, lng, note) {
       return { id, name, type, lat, lng, note, source: "sample", confidence: "medium" };
+    }
+
+    function routeLocationId(item) {
+      return item?.itemId || item?.id || "";
+    }
+
+    function coordinatesNear(a, b, tolerance = 0.00005) {
+      return Number.isFinite(a?.lat)
+        && Number.isFinite(a?.lng)
+        && Number.isFinite(b?.lat)
+        && Number.isFinite(b?.lng)
+        && Math.abs(a.lat - b.lat) <= tolerance
+        && Math.abs(a.lng - b.lng) <= tolerance;
+    }
+
+    function sameRouteLocation(a, b) {
+      const aId = routeLocationId(a);
+      const bId = routeLocationId(b);
+      if (aId && bId && aId === bId) return true;
+      return coordinatesNear(a, b);
+    }
+
+    function compactScheduledPoints(points) {
+      const compacted = [];
+      points.forEach(entry => {
+        const last = compacted[compacted.length - 1];
+        if (last && sameRouteLocation(last.item, entry.item)) {
+          last.endSlot = entry.slot;
+          last.slots.push(entry.slot);
+          return;
+        }
+        compacted.push({ ...entry, endSlot: entry.slot, slots: [entry.slot] });
+      });
+      return compacted;
     }
 
     function destination(id, name, score, rank, detail, scores, seed) {
@@ -757,9 +826,13 @@
 
     function loadState() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+        const parsed = JSON.parse(raw);
         const normalized = normalizeImportedState(parsed);
-        if (normalized) return normalized;
+        if (normalized) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+          return normalized;
+        }
       } catch (_) {}
       return defaultState();
     }
@@ -793,8 +866,13 @@
         headers: { "content-type": "application/json", ...(options.headers || {}) },
         ...options
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (_) {}
+      if (!response.ok) throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
+      return data;
     }
 
     async function loadTextResource(path) {
@@ -1231,7 +1309,7 @@
           flight: { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206 },
           restaurant: { name: "Shkoder old town restaurant area", lat: 42.0686, lng: 19.5126 },
           hotel: { name: "Theth village guesthouse area", lat: 42.3959, lng: 19.7745 },
-          attraction: { name: "Theth / Valbona mountain route", lat: 42.3959, lng: 19.7745 },
+          attraction: { name: "Theth / Valbona mountain route", lat: 42.4309, lng: 19.8496 },
           airports: [
             { name: "Tirana International Airport", lat: 41.4147, lng: 19.7206, note: "阿尔巴尼亚主机场｜TIA" },
             { name: "Kukes International Airport", lat: 42.0337, lng: 20.4159, note: "北部备选机场｜KFZ" }
@@ -1322,6 +1400,40 @@
       planner.updatedAt = new Date().toISOString();
     }
 
+    function ensurePlannerPlaceCoordinates(planner) {
+      if (planner.destinationId !== "albania-accursed-mountains") return;
+      const correction = {
+        id: "a1",
+        namePattern: /theth\s*\/\s*valbona|valbona mountain|valbona pass|mountain route/i,
+        old: { lat: 42.3959, lng: 19.7745 },
+        lat: 42.4309,
+        lng: 19.8496,
+        note: "Theth / Valbona 山线区域｜Valbona Pass 一带"
+      };
+      let changed = false;
+      const applyCorrection = item => {
+        if (!item) return;
+        const id = routeLocationId(item);
+        const matches = (id && id === correction.id) || correction.namePattern.test(String(item.name || ""));
+        if (!matches || coordinatesNear(item, correction)) return;
+        const source = String(item.source || "");
+        const note = String(item.note || "");
+        const shouldApply = coordinatesNear(item, correction.old)
+          || ["agent-runner", "sample"].includes(source)
+          || /占位|待查|核心景点/.test(note);
+        if (!shouldApply) return;
+        item.lat = correction.lat;
+        item.lng = correction.lng;
+        if (!item.note || /占位|待查|核心景点/.test(item.note)) item.note = correction.note;
+        else if (!String(item.note).includes("山线区域")) item.note = `${item.note}｜坐标修正为山线区域`;
+        changed = true;
+      };
+      Object.values(planner.candidates || {}).flat().forEach(applyCorrection);
+      Object.values(planner.itinerary || {}).forEach(applyCorrection);
+      (planner.staging || []).forEach(applyCorrection);
+      if (changed) planner.updatedAt = new Date().toISOString();
+    }
+
     function airportCandidatesForPlanner(planner) {
       if (planner.destinationId === "georgia-caucasus") return georgiaCandidates().flights;
       const defaults = destinationDefaults({ id: planner.destinationId, name: planner.destinationName || planner.title || "" });
@@ -1337,6 +1449,7 @@
         return;
       }
       ensureAirportCandidates(planner);
+      ensurePlannerPlaceCoordinates(planner);
       document.getElementById("content").innerHTML = `
         <section class="planner-grid">
           <aside class="panel candidate-pool-panel">
@@ -1346,6 +1459,21 @@
           <aside class="panel staging-panel">
             <div class="panel-head"><h2>预选区</h2></div>
             <div class="panel-body">
+              <div class="import-place-control">
+                <div class="import-place-row">
+                  <input class="recommend-input" id="importPlaceInput" placeholder="粘贴地点名 / Google Maps 链接 / 地址">
+                </div>
+                <div class="import-place-actions">
+                  <select class="route-select" id="importPlaceCategory">
+                    <option value="">自动识别</option>
+                    <option value="restaurants">餐厅</option>
+                    <option value="attractions">景点</option>
+                    <option value="hotels">住宿</option>
+                    <option value="flights">机场</option>
+                  </select>
+                  <button class="btn" id="importPlaceBtn">导入</button>
+                </div>
+              </div>
               <div class="box-list" id="stagingList"></div>
               <div class="empty" id="stagingEmpty">点击左侧候选后，这里出现可拖拽 box。</div>
             </div>
@@ -1392,6 +1520,7 @@
       renderCandidatePool(planner);
       renderStaging(planner);
       renderItinerary(planner);
+      wireImportPlace(planner);
       document.getElementById("savePlannerBtn").addEventListener("click", () => savePlanner(planner));
       document.getElementById("applyDateRangeBtn").addEventListener("click", () => applyDateRange(planner));
       document.querySelectorAll("[data-date-range-input]").forEach(input => {
@@ -1408,8 +1537,22 @@
           await calculateRoute(planner);
         });
       });
+      wireRouteSegmentHover();
       initTableScrollSync();
       initMap(planner);
+    }
+
+    function wireRouteSegmentHover() {
+      document.querySelectorAll("[data-route-segment-key]").forEach(row => {
+        row.addEventListener("mouseenter", () => {
+          row.classList.add("is-hovered");
+          routeHighlighter(row.dataset.routeSegmentKey);
+        });
+        row.addEventListener("mouseleave", () => {
+          row.classList.remove("is-hovered");
+          routeHighlighter(null);
+        });
+      });
     }
 
     async function calculateRoute(planner) {
@@ -1434,6 +1577,7 @@
     function routeSummaryHtml(planner) {
       const route = planner.route;
       if (!route) return `未计算`;
+      if (!routeMatchesCurrentPoints(planner)) return `路线需重新计算`;
       const distance = formatDistance(route.distanceMeters);
       const duration = formatDuration(route.durationSeconds);
       const mode = routeModeLabel(route.mode || planner.routeMode || "driving");
@@ -1442,7 +1586,7 @@
     }
 
     function segmentControlsHtml(planner) {
-      const points = scheduledPoints(planner);
+      const points = routePointEntries(planner);
       if (points.length < 2) return `<div class="muted">排入至少两个地点后，可以为每一段选择交通方式。</div>`;
       return points.slice(0, -1).map((entry, index) => {
         const next = points[index + 1];
@@ -1450,7 +1594,7 @@
         const mode = planner.routeSegmentModes?.[key] || planner.route?.segments?.find(segment => segment.key === key)?.mode || planner.routeMode || "driving";
         const routeSegment = planner.route?.segments?.find(segment => segment.key === key);
         return `
-          <div class="segment-row">
+          <div class="segment-row" data-route-segment-key="${escapeHtml(key)}">
             <div><strong>${index + 1} -> ${index + 2}</strong> ${escapeHtml(entry.item.name)} -> ${escapeHtml(next.item.name)}</div>
             <select class="route-select" data-segment-mode="${escapeHtml(key)}">
               ${routeModeOptions(mode)}
@@ -1546,7 +1690,11 @@
           });
         }
         const addButton = wrap.querySelector("[data-add]");
-        if (addButton) addButton.addEventListener("click", () => addStaticCandidate(planner, key, type, (promptInput?.value || "").trim()));
+        if (addButton) addButton.addEventListener("click", () => {
+          addButton.disabled = true;
+          addButton.textContent = "查询中...";
+          addStaticCandidate(planner, key, type, (promptInput?.value || "").trim());
+        });
         panel.appendChild(wrap);
       });
     }
@@ -1589,6 +1737,45 @@
       list.innerHTML = "";
       planner.staging.forEach(item => list.appendChild(box(item, null, true, planner, () => removeStagingItem(planner, item))));
       empty.style.display = planner.staging.length ? "none" : "grid";
+    }
+
+    function wireImportPlace(planner) {
+      const input = document.getElementById("importPlaceInput");
+      const category = document.getElementById("importPlaceCategory");
+      const button = document.getElementById("importPlaceBtn");
+      const requestKey = `${planner.id}:import-place`;
+      const setPending = pending => {
+        if (pending) pendingImports.add(requestKey);
+        else pendingImports.delete(requestKey);
+        button.disabled = pending;
+        button.textContent = pending ? "查询中..." : "导入";
+      };
+      setPending(pendingImports.has(requestKey));
+      const submit = async () => {
+        const query = input.value.trim();
+        if (!query || pendingImports.has(requestKey)) return;
+        if (!serverBacked) {
+          toast("导入地点需要本地 server 和 Mapbox 配置。");
+          return;
+        }
+        setPending(true);
+        try {
+          const result = await runAgentAction(`/api/planners/${encodeURIComponent(planner.id)}/import-place`, {
+            query,
+            category: category.value
+          });
+          setPending(false);
+          render();
+          toast(`已导入预选区：${result.item.name}`);
+        } catch (error) {
+          setPending(false);
+          toast(`导入失败：${error.message || "Mapbox 未找到地点"}`);
+        }
+      };
+      button.addEventListener("click", submit);
+      input.addEventListener("keydown", event => {
+        if (event.key === "Enter") submit();
+      });
     }
 
     function box(item, onClick, draggable = false, planner = null, onDelete = null) {
@@ -1887,23 +2074,42 @@
     }
 
     function routeCoordinates(planner) {
-      if (planner.route?.geometry?.type === "LineString" && Array.isArray(planner.route.geometry.coordinates)) {
+      if (routeMatchesCurrentPoints(planner) && planner.route?.geometry?.type === "LineString" && Array.isArray(planner.route.geometry.coordinates)) {
         return planner.route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng }));
       }
-      return scheduledPoints(planner).map(({ item }) => ({ lat: item.lat, lng: item.lng }));
+      return routePointEntries(planner).map(({ item }) => ({ lat: item.lat, lng: item.lng }));
     }
 
     function displayPoints(planner) {
-      const scheduled = scheduledPoints(planner).map((entry, index) => ({ ...entry, index, scheduled: true }));
+      const scheduled = routePointEntries(planner).map((entry, index) => ({ ...entry, index, scheduled: true }));
       const staged = (planner.staging || [])
         .filter(item => Number.isFinite(item.lat) && Number.isFinite(item.lng))
-        .map((item, index) => ({ slot: "预选区", item, index: scheduled.length + index, scheduled: false }));
+        .filter(item => !scheduled.some(entry => sameRouteLocation(entry.item, item)))
+        .map(item => ({ slot: "预选区", item, index: null, scheduled: false }));
       return [...scheduled, ...staged];
     }
 
+    function markerEntryLabel(entry) {
+      return entry.scheduled ? String(entry.index + 1) : "+";
+    }
+
+    function markerGroupLabel(group) {
+      const scheduled = group.entries.filter(entry => entry.scheduled);
+      if (!scheduled.length) return "+";
+      if (scheduled.length === 1) return String(scheduled[0].index + 1);
+      return `${scheduled[0].index + 1}-${scheduled[scheduled.length - 1].index + 1}`;
+    }
+
+    function markerPopupHtml(entries) {
+      return entries.map(({ slot, item: row, scheduled, index }) => {
+        const label = scheduled ? `${index + 1}. ` : "预选. ";
+        return `<strong>${label}${escapeHtml(row.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[row.type]}｜${escapeHtml(row.note || "")}`;
+      }).join("<hr>");
+    }
+
     function routeSegments(planner) {
-      const scheduled = scheduledPoints(planner);
-      if (Array.isArray(planner.route?.segments) && planner.route.segments.length) {
+      const scheduled = routePointEntries(planner);
+      if (routeMatchesCurrentPoints(planner, scheduled) && Array.isArray(planner.route?.segments) && planner.route.segments.length) {
         return planner.route.segments.map((segment, index) => ({
           ...segment,
           label: formatDuration(segment.durationSeconds) || segment.summary || `${index + 1}`,
@@ -1919,6 +2125,16 @@
           position: midpoint(entry.item, next.item)
         };
       });
+    }
+
+    function segmentCoordinates(segment, scheduled = routePointEntries(state.planners.find(planner => planner.id === state.activeTab) || {})) {
+      if (Array.isArray(segment?.geometry?.coordinates) && segment.geometry.coordinates.length) {
+        return segment.geometry.coordinates;
+      }
+      const from = scheduled[segment?.fromIndex]?.item;
+      const to = scheduled[segment?.toIndex]?.item;
+      if (!from || !to) return [];
+      return [[from.lng, from.lat], [to.lng, to.lat]];
     }
 
     function segmentPosition(segment, scheduled) {
@@ -1948,6 +2164,19 @@
         .sort((a, b) => slotOrder(a.slot) - slotOrder(b.slot));
     }
 
+    function routePointEntries(planner) {
+      return compactScheduledPoints(scheduledPoints(planner));
+    }
+
+    function routeMatchesCurrentPoints(planner, scheduled = routePointEntries(planner)) {
+      if (!planner.route) return false;
+      const line = Array.isArray(planner.route.line) ? planner.route.line : [];
+      const routePointCount = Number(planner.route.pointCount || line.length);
+      if (routePointCount !== scheduled.length) return false;
+      if (line.length && line.length !== scheduled.length) return false;
+      return !line.length || line.every((point, index) => coordinatesNear(point, scheduled[index]?.item, 0.0002));
+    }
+
     function slotOrder(slot) {
       const [date, time] = String(slot).split("|");
       const defaultIndex = defaultDates.indexOf(date);
@@ -1958,7 +2187,7 @@
     }
 
     function isChinaPlanner(planner) {
-      const scheduled = scheduledPoints(planner);
+      const scheduled = routePointEntries(planner);
       if (scheduled.length) return scheduled.every(({ item }) => isChinaPoint(item));
       const name = `${planner.destinationName || ""} ${planner.title || ""}`.toLowerCase();
       return /中国|北京|上海|重庆|天津|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|台湾|内蒙古|广西|西藏|宁夏|新疆|香港|澳门|九寨沟|张家界|黄山|桂林|大理|丽江|成都|杭州|苏州|西安|厦门|青岛|哈尔滨|三亚/.test(name)
@@ -1972,10 +2201,12 @@
     async function renderMapbox(planner) {
       const mapboxgl = await loadMapboxSdk();
       const el = document.getElementById("map");
-      const scheduled = scheduledPoints(planner);
+      const scheduled = routePointEntries(planner);
       const display = displayPoints(planner);
       const route = routeCoordinates(planner);
+      const segments = routeSegments(planner);
       const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      routeHighlighter = () => {};
       el.className = "live-map";
       el.innerHTML = "";
       if (!all.length) {
@@ -2012,23 +2243,19 @@
         const first = group.entries[0];
         const item = first.item;
         const color = markerColors[item.type] || "#111827";
-        const numberLabel = group.entries.length === 1
-          ? (first.scheduled ? String(first.index + 1) : "+")
-          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const numberLabel = markerGroupLabel(group);
         const markerEl = document.createElement("div");
         markerEl.className = "map-marker";
         markerEl.style.background = color;
         markerEl.textContent = numberLabel;
-        const popup = new mapboxgl.Popup({ offset: 20 }).setHTML(group.entries
-          .map(({ slot, item: row, index }) => `<strong>${index + 1}. ${escapeHtml(row.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[row.type]}｜${escapeHtml(row.note || "")}`)
-          .join("<hr>"));
+        const popup = new mapboxgl.Popup({ offset: 20 }).setHTML(markerPopupHtml(group.entries));
         new mapboxgl.Marker({ element: markerEl, anchor: "center" })
           .setLngLat([item.lng, item.lat])
           .setPopup(popup)
           .addTo(map);
       });
 
-      routeSegments(planner).forEach(segment => {
+      segments.forEach(segment => {
         const markerEl = document.createElement("div");
         markerEl.className = "route-time-marker";
         markerEl.textContent = segment.label;
@@ -2062,6 +2289,30 @@
             }
           });
         }
+        map.addSource("route-highlight", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] }
+        });
+        map.addLayer({
+          id: "route-highlight-line",
+          type: "line",
+          source: "route-highlight",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#ef4444",
+            "line-width": 9,
+            "line-opacity": 0.92
+          }
+        });
+        routeHighlighter = key => {
+          const source = map.getSource("route-highlight");
+          if (!source) return;
+          const segment = segments.find(item => item.key === key);
+          const coordinates = segment ? segmentCoordinates(segment, scheduled) : [];
+          source.setData(coordinates.length > 1
+            ? { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } }
+            : { type: "FeatureCollection", features: [] });
+        };
         if (scheduled.length > 1) {
           map.addSource("direct-line", {
             type: "geojson",
@@ -2094,10 +2345,12 @@
     async function renderAmap(planner) {
       const AMap = await loadAmapSdk();
       const el = document.getElementById("map");
-      const scheduled = scheduledPoints(planner);
+      const scheduled = routePointEntries(planner);
       const display = displayPoints(planner);
       const route = routeCoordinates(planner);
+      const segments = routeSegments(planner);
       const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      routeHighlighter = () => {};
       el.className = "live-map";
       el.innerHTML = "";
       if (!all.length) {
@@ -2133,24 +2386,20 @@
         const first = group.entries[0];
         const item = first.item;
         const color = markerColors[item.type] || "#111827";
-        const numberLabel = group.entries.length === 1
-          ? (first.scheduled ? String(first.index + 1) : "+")
-          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const numberLabel = markerGroupLabel(group);
         const marker = new AMap.Marker({
           position: [item.lng, item.lat],
           anchor: "center",
           content: `<div class="map-marker" style="background:${color}">${numberLabel}</div>`
         });
-        const content = group.entries
-          .map(({ slot, item: row, index }) => `<strong>${index + 1}. ${escapeHtml(row.name)}</strong><br>${escapeHtml(slot)}<br>${typeLabels[row.type]}｜${escapeHtml(row.note || "")}`)
-          .join("<hr>");
+        const content = markerPopupHtml(group.entries);
         marker.on("mouseover", () => infoWindow.setContent(content) || infoWindow.open(map, marker.getPosition()));
         marker.on("click", () => infoWindow.setContent(content) || infoWindow.open(map, marker.getPosition()));
         marker.setMap(map);
         overlays.push(marker);
       });
 
-      routeSegments(planner).forEach(segment => {
+      segments.forEach(segment => {
         const marker = new AMap.Marker({
           position: [segment.position.lng, segment.position.lat],
           anchor: "center",
@@ -2185,15 +2434,37 @@
         directLine.setMap(map);
         overlays.push(directLine);
       }
+      let highlightedRoute = null;
+      routeHighlighter = key => {
+        if (highlightedRoute) {
+          highlightedRoute.setMap(null);
+          highlightedRoute = null;
+        }
+        const segment = segments.find(item => item.key === key);
+        const coordinates = segment ? segmentCoordinates(segment, scheduled) : [];
+        if (coordinates.length < 2) return;
+        highlightedRoute = new AMap.Polyline({
+          path: coordinates.map(([lng, lat]) => [lng, lat]),
+          strokeColor: "#ef4444",
+          strokeWeight: 9,
+          strokeOpacity: 0.92,
+          lineJoin: "round",
+          lineCap: "round",
+          zIndex: 80
+        });
+        highlightedRoute.setMap(map);
+      };
       if (overlays.length) map.setFitView(overlays, false, [48, 48, 48, 48], 13);
     }
 
     function renderRouteDiagram(planner) {
       const el = document.getElementById("map");
       const route = routeCoordinates(planner);
-      const scheduled = scheduledPoints(planner);
+      const scheduled = routePointEntries(planner);
       const display = displayPoints(planner);
+      const segments = routeSegments(planner);
       const all = [...route, ...display.map(({ item }) => ({ lat: item.lat, lng: item.lng }))];
+      routeHighlighter = () => {};
       el.className = "route-diagram";
       if (!all.length) {
         el.innerHTML = `<svg viewBox="0 0 900 600" role="img" aria-label="route diagram"><text x="450" y="300" text-anchor="middle" class="route-label">还没有可绘制的地点</text></svg>`;
@@ -2215,6 +2486,14 @@
       });
       const routePath = route.map(project).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
       const directPath = scheduled.map(({ item }) => project(item)).map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      const segmentPolylines = segments.map(segment => {
+        const points = segmentCoordinates(segment, scheduled)
+          .map(([lng, lat]) => project({ lng, lat }))
+          .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+          .join(" ");
+        if (!points) return "";
+        return `<polyline data-route-segment-line="${escapeHtml(segment.key || "")}" class="route-segment-line" points="${points}" fill="none" stroke="#ef4444" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></polyline>`;
+      }).join("");
       const markerGroups = [];
       display.forEach((entry, index) => {
         const key = `${entry.item.lat.toFixed(5)},${entry.item.lng.toFixed(5)}`;
@@ -2229,14 +2508,12 @@
         const first = group.entries[0];
         const p = project(first.item);
         const color = markerColors[first.item.type] || "#111827";
-        const numberLabel = group.entries.length === 1
-          ? (first.scheduled ? String(first.index + 1) : "+")
-          : `${first.index + 1}-${group.entries[group.entries.length - 1].index + 1}`;
+        const numberLabel = markerGroupLabel(group);
         const labelText = group.entries.map(({ item }) => item.name).join(" / ");
         const label = escapeHtml(labelText);
         const short = label.length > 28 ? `${label.slice(0, 28)}...` : label;
         const title = group.entries
-          .map(({ slot, item, index }) => `${index + 1}. ${item.name} | ${slot} | ${item.note || ""}`)
+          .map(entry => `${markerEntryLabel(entry)}. ${entry.item.name} | ${entry.slot} | ${entry.item.note || ""}`)
           .join("\n");
         return `
           <g>
@@ -2247,7 +2524,7 @@
           </g>
         `;
       }).join("");
-      const segmentLabels = routeSegments(planner).map(segment => {
+      const segmentLabels = segments.map(segment => {
         const p = project(segment.position);
         return `
           <g>
@@ -2263,11 +2540,17 @@
           <path d="M ${pad} ${height - pad} L ${width - pad} ${height - pad} L ${width - pad} ${pad}" fill="none" stroke="#cbd5e1" stroke-width="1"></path>
           ${directPath ? `<polyline points="${directPath}" fill="none" stroke="#94a3b8" stroke-width="4" stroke-dasharray="8 8" opacity=".75"></polyline>` : ""}
           ${routePath ? `<polyline points="${routePath}" fill="none" stroke="#111827" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>` : ""}
+          ${segmentPolylines}
           ${segmentLabels}
           ${markers}
           <text x="${pad}" y="${height - 24}" class="route-label">${escapeHtml(planner.route?.summary || "按表格地点绘制路线图")}</text>
         </svg>
       `;
+      routeHighlighter = key => {
+        document.querySelectorAll("[data-route-segment-line]").forEach(line => {
+          line.classList.toggle("is-active", Boolean(key) && line.dataset.routeSegmentLine === key);
+        });
+      };
     }
 
     function toast(message) {
@@ -2334,6 +2617,7 @@
     });
     document.getElementById("resetBtn").addEventListener("click", async () => {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
       if (serverBacked) {
         try {
           state = normalizeImportedState(await apiJson("/api/board", { method: "DELETE" })) || defaultState();

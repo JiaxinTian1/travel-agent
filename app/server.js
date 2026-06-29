@@ -11,6 +11,7 @@ const APP_DIR = path.join(ROOT, "app");
 loadEnvFile(path.join(APP_DIR, ".env"));
 const runner = require("./agent/runner");
 const memoryStore = require("./agent/memoryStore");
+const google = require("./toolkit/google");
 const STATE_DIR = path.join(ROOT, "workspace", "app-state");
 const BOARD_PATH = process.env.BOARD_STATE_PATH || path.join(STATE_DIR, "board.json");
 const QUERY_PATH = process.env.TRAVEL_QUERY_PATH || path.join(ROOT, "workspace", "query.md");
@@ -68,20 +69,19 @@ function publicMapConfig() {
     amapJsApiKey,
     amapSecurityJsCode: process.env.AMAP_SECURITY_JS_CODE || "",
     amapServiceEnabled: Boolean(process.env.AMAP_MAPS_API_KEY || process.env.AMAP_WEB_SERVICE_KEY || process.env.AMAP_API_KEY),
-    orsEnabled: Boolean(process.env.ORS_API_KEY),
-    orsProfile: process.env.ORS_PROFILE || "driving-car"
+    googleServiceEnabled: google.enabled()
   };
 }
 
-function mapHealthConfig() {
+async function mapHealthConfig() {
   const config = publicMapConfig();
   return {
     mapboxEnabled: config.mapboxEnabled,
     mapboxServiceEnabled: config.mapboxServiceEnabled,
     amapEnabled: config.amapEnabled,
     amapServiceEnabled: config.amapServiceEnabled,
-    orsEnabled: config.orsEnabled,
-    orsProfile: config.orsProfile
+    googleServiceEnabled: config.googleServiceEnabled,
+    googleUsage: await google.usageStatusAsync()
   };
 }
 
@@ -183,7 +183,7 @@ async function handleApi(req, res, pathname) {
       queryPath: QUERY_PATH,
       memoryPath: memoryStore.memoryPath(),
       llmEnabled: runner.isModelEnabled(),
-      ...mapHealthConfig(),
+      ...(await mapHealthConfig()),
       model: process.env.OPENAI_MODEL || "gpt-5.5"
     });
     return true;
@@ -257,6 +257,17 @@ async function handleApi(req, res, pathname) {
       const result = await runner.recommendPlace(state, decodeURIComponent(match[1]), body.category, {
         prompt: body.prompt || body.userPrompt || ""
       });
+      result.state = await writeBoardState(result.state);
+      sendJson(res, 200, result);
+      return true;
+    }
+  }
+  {
+    const match = pathname.match(/^\/api\/planners\/([^/]+)\/import-place$/);
+    if (match && req.method === "POST") {
+      const body = JSON.parse((await readRequestBody(req)) || "{}");
+      const state = await readBoardState();
+      const result = await runner.importPlaceToStaging(state, decodeURIComponent(match[1]), body);
       result.state = await writeBoardState(result.state);
       sendJson(res, 200, result);
       return true;

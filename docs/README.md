@@ -8,15 +8,22 @@
   <a href="index.html"><strong>Docs Home</strong></a>
 </p>
 
-Open `index.html` in a browser to browse the documentation with a Chinese/English language toggle.
-
-Documentation is organized as:
+Open `index.html` in a browser for the language switcher.
 
 ```text
 docs/
 ├── index.html
+├── assets/screenshots/
 ├── en/
+│   ├── README.md
+│   ├── commands.md
+│   ├── status.md
+│   └── toolkit/
 └── zh/
+    ├── README.md
+    ├── commands.md
+    ├── status.md
+    └── toolkit/
 ```
 
-The `en/` folder mirrors the project Markdown documents. The `zh/` folder contains Chinese versions for the same user-facing documents.
+The root `README.md` is the public project overview. The `docs/` folder keeps operational documentation.

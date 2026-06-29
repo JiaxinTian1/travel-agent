@@ -1,157 +1,70 @@
-# Travel Agent Status
+# Integration Status
 
-## 2026-06-14 Xiaohongshu Test
+## App
 
-Environment values loaded:
+- Local server: `node app/server.js`
+- Health endpoint: `http://127.0.0.1:8080/api/health`
+- Board state: `workspace/app-state/board.json`
+- Query: `workspace/query.md`
+- Memory: `app/agent/memory.md`
 
-- `XIAOHONGSHU_COOKIE`: present
-- `XIAOHONGSHU_XS`: present
-- `XIAOHONGSHU_XS_COMMON`: present
+## Google Maps
 
-Direct client call reached `edith.xiaohongshu.com` and returned HTTP 200 with API `code: 0`.
+Status: working.
 
-Observed result:
+- Places Search: primary overseas restaurant/attraction/hotel coordinate source.
+- Routes: primary overseas route provider.
+- Cloud Monitoring usage guard: working through gcloud ADC.
+- Current usage can be checked with `./toolkit/google/google-usage`.
 
-```text
-{"code":0,"success":true,"msg":"成功","data":{"has_more":false}}
-```
-
-Tested keywords:
-
-- `成都 亲子游`
-- `成都`
-- `成都亲子游`
-- `北京旅游`
-
-All returned `code: 0` but `items` was empty.
-
-Likely cause: the installed `xiaohongshu-mcp-steve` package forwards static `x-s` and `x-s-common` headers but does not generate fresh request signatures for each request body/search id. Xiaohongshu's web search API appears to require request-specific signing. The current cookie/header values prove authentication can reach the API, but this MCP package is not enough to retrieve search notes reliably.
-
-Current practical status:
-
-- FlyAI: working via `./toolkit/fz/flyai-env`.
-- Xiaohongshu cookie loading: working.
-- Xiaohongshu direct API auth: partially working.
-- Xiaohongshu note retrieval through current package: not working, returns empty result.
-- `mcporter` stdio integration for this package: still offline.
-
-## 2026-06-14 xpzouying/xiaohongshu-mcp Test
-
-Downloaded release:
-
-- tag: `v2026.06.12.1403-5c43e3d`
-- asset: `xiaohongshu-mcp-linux-amd64.tar.gz`
-- sha256: `6467e0179b755508fb1d71405d4da8234472f7a43464ce2253d6682da6306322`
-
-Installed under:
+Expected health fields:
 
 ```text
-toolkit/xhs/xhs-mcp/
+googleServiceEnabled: true
+googleUsage.source: monitoring
+googleUsage.monitoringConfigured: true
 ```
 
-Binaries:
+## Map Rendering
 
-- `xiaohongshu-mcp-linux-amd64`
-- `xiaohongshu-login-linux-amd64`
+- Mapbox remains the primary browser map renderer for global maps.
+- AMap/Gaode is kept for China planners.
+- SVG route diagram remains a fallback when map tokens or browser map tiles fail.
 
-MCP HTTP service starts and initializes successfully on:
+## Booking
 
-```text
-http://localhost:18060/mcp
-```
+Status: integrated as read-only hotel research.
 
-`mcporter list xiaohongshu-xpz --schema` successfully detects 13 tools, including:
+- Wrapper package: `@striderlabs/mcp-booking`
+- Use for overseas hotels, aparthotels, prices, availability, cancellation policy, and reviews.
+- Booking/account transaction tools are intentionally not exposed.
 
-- `check_login_status`
-- `get_login_qrcode`
-- `search_feeds`
-- `get_feed_detail`
-- `list_feeds`
+## Airbnb
 
-Current blocker:
+Status: integrated for homestay-style lodging research.
 
-```text
-Failed to launch the browser:
-.../rod/browser/chromium-1321438/chrome: error while loading shared libraries: libnss3.so: cannot open shared object file
-```
+- Wrapper package: `@openbnb/mcp-server-airbnb`
+- Use for apartments, villas, kitchens/laundry, family stays, long stays, and local-neighborhood lodging.
 
-Conclusion: this repository is structurally usable and matches the travel-agent tool names, but WSL is missing Linux Chromium runtime libraries. Install Chromium dependencies before login/search can work.
+## FlyAI / Fliggy
 
-## 2026-06-14 xpzouying Login Success
+Status: integrated through CLI wrapper.
 
-Login is confirmed through the visual browser flow. The QR-only MCP flow can show a QR image, but did not reliably persist cookies in this WSL setup. The reliable path was:
+- Use for flights, domestic/China-market hotels, POIs, and fast travel product search.
+- Config lives in `toolkit/fz/.env`.
 
-1. Install Chromium runtime libraries.
-2. Run `./toolkit/xhs/xhs-mcp-start`.
-3. Generate/login through the browser flow and confirm the second security QR in REDNote.
+## Xiaohongshu
 
-Cookies now exist:
+Status: available when MCP service and login state are healthy.
 
-```text
-toolkit/xhs/xhs-mcp/data/cookies.json
-```
+- Start: `./toolkit/xhs/xhs-mcp-start`
+- Status: `./toolkit/xhs/xhs-mcp-status`
+- Login helper: `./toolkit/xhs/xhs-login-watch`
+- MCP registration: `xiaohongshu-xpz`
 
-Verified:
+The platform may still require QR/security confirmation or throttle searches.
 
-- `check_login_status`: returns logged in.
-- `list_feeds`: returns feed data successfully.
+## Repository Layout
 
-Pending:
-
-- `search_feeds` with filters timed out in a 180s test. The MCP/browser/login stack works, but search automation may need separate debugging or a visible browser session.
-
-## 2026-06-16 Airbnb MCP Wrapper
-
-Integrated `openbnb-org/mcp-server-airbnb` as local wrappers under:
-
-```text
-toolkit/airbnb/
-```
-
-Commands:
-
-- `airbnb-mcp-list`
-- `airbnb-search`
-- `airbnb-details`
-
-The wrapper uses `mcporter` to connect to `npx -y @openbnb/mcp-server-airbnb` over stdio. It passes `--ignore-robots-txt` by default and exposes `AIRBNB_IGNORE_ROBOTS` plus `DISABLE_GEOCODING` through `toolkit/airbnb/.env`.
-
-Current verification:
-
-```text
-node v22.22.1
-npm 9.2.0
-npx 9.2.0
-airbnb-mcp-list OK
-airbnb-search reaches the MCP server; default wrapper behavior bypasses robots.txt
-```
-
-## 2026-06-20 Booking.com MCP Wrapper
-
-Integrated `markswendsen-code/mcp-booking` as local read-only hotel research wrappers under:
-
-```text
-toolkit/booking/
-```
-
-Commands:
-
-- `booking-mcp-list`
-- `booking-search`
-- `booking-property`
-- `booking-availability`
-- `booking-prices`
-- `booking-reviews`
-
-The wrapper uses `mcporter` to connect to `npx -y @striderlabs/mcp-booking` over stdio.
-
-Default travel-skill usage:
-
-- Overseas hotels/aparthotels: use Booking.com first.
-- Homestays/apartments/villas/kitchens/laundry/family stays/long stays: use Airbnb first.
-- Flights and domestic/Chinese-market travel data: use FlyAI/Feizhu first.
-
-Safety boundary:
-
-- Booking/reservation/wishlist tools are intentionally not wrapped for automated research flows.
-- Do not call `booking_book`, `booking_cancel_reservation`, `booking_get_reservations`, or `booking_save_property` unless a separate manual booking workflow with explicit user confirmation is added.
+- User-facing docs live under `docs/en` and `docs/zh`.
+- Generated reports and transient route results stay out of the committed baseline.

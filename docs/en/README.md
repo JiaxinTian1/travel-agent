@@ -8,173 +8,104 @@
   <a href="../index.html"><strong>Docs</strong></a>
 </p>
 
-This repository is a Codex travel-planning workspace centered on two active skills:
+Travel Agent is a local-first travel planning app controlled by a lightweight agent runner. It keeps research, planner tabs, candidate places, itinerary cells, and routes as editable app state.
 
-- `researcher`: compare and rank candidate destinations when the destination is still open.
-- `planner`: build route options and a detailed 2-hour itinerary after the destination is chosen.
-
-The toolkit folders provide live data helpers for those skills, but the skills are the main product of this repo.
-
-## Layout
+## Product Flow
 
 ```text
-.
-├── skills/
-│   ├── researcher/
-│   └── planner/
-├── toolkit/
-│   ├── fz/        # Feizhu/FlyAI CLI wrapper
-│   ├── xhs/       # Xiaohongshu MCP scripts and login state
-│   ├── airbnb/    # Airbnb MCP wrappers for homestay/apartment research
-│   ├── booking/   # Booking.com MCP wrappers for hotel research
-│   └── login/     # combined toolkit login/config helpers
-├── workspace/
-│   ├── memory.md  # long-term travel preferences and visited-place memory
-│   ├── query.md   # current editable trip request
-│   └── outputs/   # generated plans and source snapshots
-├── install.sh
-├── commands.md
-└── status.md
+workspace/query.md + app/agent/memory.md
+  -> researcher tab
+  -> planner tabs
+  -> editable itinerary grid
+  -> route map
 ```
 
-Run commands from the repository root unless a command says otherwise.
+## Main Components
 
-## Install
+| Area | Path | Purpose |
+|---|---|---|
+| Web app | `app/index.html` | Researcher tab, planner tabs, drag/drop itinerary, map route view |
+| Server | `app/server.js` | Local API for board state, query, memory, research, planner actions |
+| Agent runner | `app/agent/` | Model calls, tool routing, recommendation logic, memory store |
+| Toolkit adapters | `app/toolkit/` | JS adapters for Booking, Airbnb, FlyAI, Xiaohongshu, Google, Mapbox, AMap |
+| Shell wrappers | `toolkit/` | CLI wrappers and login helpers for external tools |
+| Skills | `skills/` | Codex-facing workflows for researcher, planner, and app operation |
+| Runtime workspace | `workspace/` | Editable query and local app state |
 
-Install or check the optional live-data dependencies:
+## Start
 
 ```bash
-./install.sh
+cd /home/snowbolwer/travel-agent
+node app/server.js
+```
+
+Open:
+
+```text
+http://127.0.0.1:8080/
+```
+
+## Install And Login
+
+```bash
 ./install.sh --doctor
-```
-
-The installer handles project wrappers, downloads the Xiaohongshu MCP binary, and installs npm CLIs when `npm` is available:
-
-- `@fly-ai/flyai-cli` for FlyAI/Fliggy flight, hotel, and POI data.
-- `mcporter` for calling MCP tools from shell.
-- Playwright Chromium for Booking.com hotel search.
-
-It does not log in to Xiaohongshu. By default it does not install system packages such as Node.js/npm or Chromium libraries. To install missing Linux Node.js/npm through apt, run:
-
-```bash
-./install.sh --install-system
-```
-
-## Skills
-
-Use `researcher` for questions like:
-
-```text
-9月底从上海出发，想要自然风光、小众一点，去哪几个地方值得比？
-```
-
-Use `planner` after the destination is fixed:
-
-```text
-就选格鲁吉亚，帮我做 9/25-10/7 的路线和 2 小时日程表。
-```
-
-Both skills read `workspace/memory.md` and `workspace/query.md` when present, then merge them with the latest user prompt. Generated artifacts should go under `workspace/outputs/<trip-id>/`.
-
-## Feizhu / FlyAI
-
-FlyAI config lives in `toolkit/fz/.env`.
-
-Example:
-
-```bash
-./toolkit/fz/flyai-env search-flight --origin "上海" --destination "北京" --dep-date 2026-07-01 --sort-type 3
-```
-
-Smoke test:
-
-```bash
-./toolkit/fz/fz-status
-```
-
-## Login / Config Helpers
-
-Check all tool login/config surfaces:
-
-```bash
+./install.sh --install-gcloud
 ./toolkit/login/login-status
-```
-
-Run the interactive login/config flow:
-
-```bash
 ./toolkit/login/login-all
 ```
 
-Only Xiaohongshu normally needs QR login. FlyAI uses `toolkit/fz/.env`; Airbnb and Booking.com anonymous search currently do not need account login.
+`login-all` covers Google Monitoring login and Xiaohongshu login. Booking and Airbnb anonymous search do not need account login.
 
-## Xiaohongshu MCP
+## Google Maps
 
-The current Xiaohongshu MCP service is the `xiaohongshu-xpz` mcporter registration. Start it from the repository root:
+Google is the primary global source for Places and Routes. The app checks Cloud Monitoring before Google API calls when configured:
 
-```bash
-./toolkit/xhs/xhs-mcp-start
+```env
+GOOGLE_USAGE_SOURCE=monitoring
+GOOGLE_CLOUD_PROJECT_ID=your-project-id
 ```
 
-By default, the start script runs the visual login helper first. If you are rate-limited or want to test anonymous search without touching login state, skip that login check:
+Login with user ADC:
 
 ```bash
-XHS_SKIP_LOGIN=1 ./toolkit/xhs/xhs-mcp-start
+./toolkit/google/google-login
+./toolkit/google/google-usage
 ```
 
-Skipping login only avoids the login helper. It does not guarantee anonymous search will work; Xiaohongshu may still require valid cookies or block automated search.
+## Toolkit Rules
 
-Common commands:
+- Google Places: primary source for overseas restaurants, attractions, hotels coordinates, and import-place resolution.
+- Google Routes: primary overseas route provider.
+- AMap/Gaode: primary map and route provider for mainland China planners.
+- Mapbox: global map rendering and route fallback.
+- Booking: overseas hotel price/availability/review research.
+- Airbnb: homestays, apartments, villas, kitchens/laundry, family stays, and long stays.
+- FlyAI/Fliggy: flights, China-market hotels, and domestic POI/product search.
+- Xiaohongshu: social/community evidence when the MCP service is logged in and available.
 
-```bash
-./toolkit/xhs/xhs-mcp-status
-./toolkit/xhs/xhs-mcp-stop
-mcporter call xiaohongshu-xpz.search_feeds --timeout 120000 --args '{"keyword":"成都 亲子游"}'
+## Local State
+
+Do not commit these files:
+
+```text
+app/.env
+toolkit/**/.env
+workspace/app-state/
+workspace/outputs/
 ```
 
-If you need QR login later:
+Important editable files:
 
-```bash
-./toolkit/xhs/xhs-login-qr
-./toolkit/xhs/xhs-login-watch
+```text
+workspace/query.md       # current trip request
+app/agent/memory.md      # durable travel memory
 ```
 
-## Airbnb MCP
+## More
 
-Airbnb support uses the open-source `openbnb-org/mcp-server-airbnb` package through local wrappers. It is useful when the user prefers homestays, apartments, villas, family stays, kitchens/laundry, or local-neighborhood lodging.
-
-Requirements:
-
-- Linux Node.js 18+
-- `npx`
-- Network access on first run to download npm packages
-
-Commands:
-
-```bash
-./toolkit/airbnb/airbnb-mcp-list
-./toolkit/airbnb/airbnb-search location="Tbilisi, Georgia" checkin=2026-09-25 checkout=2026-10-07 adults=2 propertyType=entire_home
-./toolkit/airbnb/airbnb-details id=12345678 checkin=2026-09-25 checkout=2026-10-07 adults=2
-```
-
-By default, the wrapper passes `--ignore-robots-txt` so live Airbnb search calls return data. See `toolkit/airbnb/.env.example` for optional settings.
-
-## Booking.com MCP
-
-Booking.com support uses the open-source `markswendsen-code/mcp-booking` package, published as `@striderlabs/mcp-booking`, through local wrappers. It is useful for overseas hotel, aparthotel, room availability, cancellation-policy, price, and review research.
-
-Commands:
-
-```bash
-./toolkit/booking/booking-mcp-list
-./toolkit/booking/booking-search destination="Tbilisi, Georgia" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
-./toolkit/booking/booking-property propertyUrl="<propertyId-or-url-from-booking-search>"
-./toolkit/booking/booking-prices propertyUrl="<propertyId-or-url-from-booking-search>" checkIn=2026-09-25 checkOut=2026-10-07 adults=2 rooms=1
-./toolkit/booking/booking-reviews propertyUrl="<propertyId-or-url-from-booking-search>"
-```
-
-Default travel research uses Booking.com for overseas hotels and Airbnb for homestays/apartments/villas. Booking, cancellation, reservation, and wishlist tools are intentionally not exposed through wrappers.
-
-## More Commands
-
-See `commands.md` for the fuller command notebook and `status.md` for historical integration notes.
+- [Command reference](commands.md)
+- [Current integration status](status.md)
+- [Google toolkit](toolkit/google.md)
+- [Booking toolkit](toolkit/booking.md)
+- [Airbnb toolkit](toolkit/airbnb.md)
+- [FlyAI toolkit](toolkit/fz.md)

@@ -58,4 +58,4 @@ Get details:
 
 ## Travel Skill Usage
 
-Use Airbnb only when the user prefers homestays, apartments, villas, family stays, long stays, kitchens/laundry, or local-neighborhood lodging. For ordinary hotel preference, use FlyAI/Feizhu hotel search first.
+Use Airbnb only when the user prefers homestays, apartments, villas, family stays, long stays, kitchens/laundry, or local-neighborhood lodging. For ordinary overseas hotel preference, use Booking first. For China-market hotels, use FlyAI/Feizhu first.

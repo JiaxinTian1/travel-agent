@@ -19,19 +19,20 @@ Default project root:
 ```text
 .
 ├── workspace/
-│   ├── memory.md    # long-term user profile: visited places, preferences, constraints
 │   ├── query.md     # current editable travel request
 │   └── outputs/     # generated artifacts
+├── app/agent/memory.md # long-term user profile: visited places, preferences, constraints
 └── toolkit/
     ├── fz/flyai-env # Feizhu/FlyAI wrapper
     ├── xhs/         # Xiaohongshu MCP scripts/login state
     ├── airbnb/      # Airbnb MCP wrappers for homestay/apartment research
-    └── booking/     # Booking.com MCP wrappers for overseas hotel research
+    ├── booking/     # Booking.com MCP wrappers for overseas hotel research
+    └── google/      # Google Places/Routes wrappers and usage guard
 ```
 
 Before researching:
 
-1. Read `workspace/memory.md` if it exists.
+1. Read `app/agent/memory.md` if it exists.
 2. Read `workspace/query.md` if it exists.
 3. Merge those files with the user's latest prompt. The latest prompt wins.
 4. If visited-place memory is missing, state that difference scoring is limited.
@@ -57,6 +58,8 @@ Use Booking.com first for overseas hotel, aparthotel, room availability, cancell
 Use Airbnb first when the user prefers homestays, apartments, villas, kitchens/laundry, family stays, long stays, or local-neighborhood lodging.
 
 Use FlyAI/Feizhu hotel data first for domestic/Chinese-market hotel research or when Booking/Airbnb evidence is unavailable.
+
+Use Google Places for overseas POI/restaurant/hotel coordinate checks and imported place validation. Google calls are guarded by `./toolkit/google/google-usage` when Monitoring is configured.
 
 Never call Booking.com transaction/account tools (`booking_book`, `booking_cancel_reservation`, `booking_get_reservations`, `booking_save_property`) during destination research.
 

@@ -1,21 +1,19 @@
-# Travel Planner App 🗺️
+# Travel Agent App
 
-This is the web app for Travel Agent. It gives the trip organizer a visual board for destination research, planner tabs, itinerary editing, recommendations, and routes.
+This folder contains the local web app and server.
 
-## Highlights ✨
+## Files
 
-- One fixed **researcher** tab for destination comparison.
-- Multiple editable **planner** tabs for selected destinations.
-- Query editor for the current trip request.
-- Agent memory editor for durable preferences and constraints.
-- Candidate pools for restaurants, hotels, attractions, and flights.
-- Drag-and-drop 2-hour itinerary grid.
-- Route calculation through the local agent runner.
-- Mapbox or AMap/Gaode map background when configured, with a stable SVG route diagram fallback.
+```text
+index.html        browser UI
+server.js         local HTTP API and static file server
+agent/            runner, model integration, memory store, tool registry
+toolkit/          JS adapters for external data providers
+schema/           board/researcher/planner JSON schemas
+data/             sample board state
+```
 
-## Start 🚀
-
-From the repository root:
+## Start
 
 ```bash
 node app/server.js
@@ -27,20 +25,29 @@ Open:
 http://127.0.0.1:8080/
 ```
 
-## Optional Config ⚙️
+## Config
 
-Create local app config:
+Copy and edit:
 
 ```bash
 cp app/.env.example app/.env
 ```
 
-Use it for model providers, Mapbox, AMap/Gaode, OpenRouteService, and toolkit settings. The app still opens without map or model config, but route display and recommendations will use fallback behavior.
+Useful provider groups:
 
-## Data 🧠
+- LLM: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`
+- Google: `GOOGLE_MAPS_API_KEY`, `GOOGLE_USAGE_SOURCE`, `GOOGLE_CLOUD_PROJECT_ID`
+- Mapbox: `MAPBOX_ACCESS_TOKEN`
+- AMap/Gaode: `AMAP_MAPS_API_KEY`, `AMAP_JS_API_KEY`
+- Toolkit timeouts and wrapper settings
 
-- Current trip request: `workspace/query.md`
-- Agent memory: `app/agent/memory.md`
-- Local board state: `workspace/app-state/board.json`
+## Runtime State
 
-`workspace/app-state/board.json` is local runtime state and should not be committed.
+```text
+workspace/query.md
+app/agent/memory.md
+workspace/app-state/board.json
+workspace/app-state/google-usage.json
+```
+
+Do not commit `.env` or `workspace/app-state/`.

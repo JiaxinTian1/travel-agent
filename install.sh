@@ -13,6 +13,7 @@ SKIP_NPM=false
 SKIP_XHS=false
 SKIP_SYSTEM_CHECK=false
 INSTALL_SYSTEM=false
+INSTALL_GCLOUD=false
 
 usage() {
   cat <<'EOF'
@@ -27,6 +28,7 @@ Options:
       --skip-xhs         Do not download Xiaohongshu MCP binaries.
       --skip-system      Skip node/npm/chromium system checks.
       --install-system   Install missing Linux system packages with apt-get.
+      --install-gcloud   Install Google Cloud CLI under ~/.local without sudo.
   -h, --help             Show this help.
 
 Environment:
@@ -41,6 +43,8 @@ Notes:
   - mcporter CLI comes from npm package mcporter.
   - Airbnb MCP uses npx package @openbnb/mcp-server-airbnb on demand.
   - Booking MCP uses npx package @striderlabs/mcp-booking on demand.
+  - Google Maps toolkit uses direct HTTP wrappers under toolkit/google.
+  - Google Monitoring usage checks need gcloud ADC or service-account impersonation.
   - Booking MCP requires Playwright Chromium. The installer can run:
       npx playwright install chromium
   - Xiaohongshu login is not performed by this installer.
@@ -84,10 +88,30 @@ parse_args() {
       --skip-xhs) SKIP_XHS=true; shift ;;
       --skip-system) SKIP_SYSTEM_CHECK=true; shift ;;
       --install-system) INSTALL_SYSTEM=true; shift ;;
+      --install-gcloud) INSTALL_GCLOUD=true; shift ;;
       -h|--help) usage; exit 0 ;;
       *) fail "Unknown option: $1"; usage; exit 2 ;;
     esac
   done
+}
+
+install_gcloud_local() {
+  "$INSTALL_GCLOUD" || return 0
+  if has_cmd gcloud || [[ -x "$HOME/.local/google-cloud-sdk/bin/gcloud" ]]; then
+    ok "gcloud already installed"
+    return 0
+  fi
+  log "Installing Google Cloud CLI under ~/.local/google-cloud-sdk"
+  mkdir -p "$HOME/.local"
+  local archive
+  archive="$(mktemp)"
+  curl -L "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz" -o "$archive"
+  tar -xzf "$archive" -C "$HOME/.local"
+  "$HOME/.local/google-cloud-sdk/install.sh" --quiet --path-update=false --usage-reporting=false
+  mkdir -p "$HOME/.local/bin"
+  ln -sf "$HOME/.local/google-cloud-sdk/bin/gcloud" "$HOME/.local/bin/gcloud"
+  rm -f "$archive"
+  ok "gcloud installed: $HOME/.local/bin/gcloud"
 }
 
 install_system_packages() {
@@ -231,6 +255,12 @@ ensure_wrappers() {
     "${ROOT}/toolkit/booking/booking-availability" \
     "${ROOT}/toolkit/booking/booking-prices" \
     "${ROOT}/toolkit/booking/booking-reviews" \
+    "${ROOT}/toolkit/google/google-search-place" \
+    "${ROOT}/toolkit/google/google-place-details" \
+    "${ROOT}/toolkit/google/google-geocode" \
+    "${ROOT}/toolkit/google/google-directions" \
+    "${ROOT}/toolkit/google/google-usage" \
+    "${ROOT}/toolkit/google/google-login" \
     "${ROOT}/toolkit/login/login-status" \
     "${ROOT}/toolkit/login/login-all"
 
@@ -300,6 +330,19 @@ doctor() {
     warn "Booking wrapper scripts missing"
   fi
 
+  if [[ -x "${ROOT}/toolkit/google/google-search-place" ]]; then
+    ok "Google Maps wrapper scripts installed"
+  else
+    warn "Google Maps wrapper scripts missing"
+  fi
+  if has_cmd gcloud; then
+    ok "gcloud: $(command -v gcloud)"
+  elif [[ -x "$HOME/.local/google-cloud-sdk/bin/gcloud" ]]; then
+    ok "gcloud: $HOME/.local/google-cloud-sdk/bin/gcloud"
+  else
+    warn "gcloud missing; run: ./install.sh --install-gcloud"
+  fi
+
   if [[ -x "${ROOT}/toolkit/login/login-status" ]]; then
     ok "Login helper scripts installed"
   else
@@ -318,6 +361,7 @@ main() {
 
   check_system
   install_system_packages
+  install_gcloud_local
   install_npm_clis
   install_xhs_mcp
   ensure_wrappers
